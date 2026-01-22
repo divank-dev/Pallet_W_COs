@@ -11,13 +11,14 @@ interface WorkflowSidebarProps {
   deadOpportunitiesCount?: number;
   onStageSelect: (stage: OrderStatus) => void;
   onNewOrder: () => void;
+  onNewChangeOrder?: () => void;
   onDeadOpportunitiesClick?: () => void;
   isDeadOpportunitiesActive?: boolean;
   onProductionFloorClick?: () => void;
   isProductionFloorActive?: boolean;
 }
 
-const WorkflowSidebar: React.FC<WorkflowSidebarProps> = ({ currentStage, counts, deadOpportunitiesCount = 0, onStageSelect, onNewOrder, onDeadOpportunitiesClick, isDeadOpportunitiesActive, onProductionFloorClick, isProductionFloorActive }) => {
+const WorkflowSidebar: React.FC<WorkflowSidebarProps> = ({ currentStage, counts, deadOpportunitiesCount = 0, onStageSelect, onNewOrder, onNewChangeOrder, onDeadOpportunitiesClick, isDeadOpportunitiesActive, onProductionFloorClick, isProductionFloorActive }) => {
   const { permissions } = useAuth();
 
   // Separate Lead from the rest of the workflow stages
@@ -27,7 +28,7 @@ const WorkflowSidebar: React.FC<WorkflowSidebarProps> = ({ currentStage, counts,
   return (
     <div className="w-72 bg-white border-r border-slate-200 flex flex-col">
       {permissions.canCreateOrders && (
-        <div className="p-6">
+        <div className="p-6 space-y-3">
           <button
             onClick={onNewOrder}
             className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-4 rounded-xl flex items-center justify-center gap-2 transition-colors shadow-sm"
@@ -35,6 +36,15 @@ const WorkflowSidebar: React.FC<WorkflowSidebarProps> = ({ currentStage, counts,
             <Plus size={20} />
             New Lead / Order
           </button>
+          {onNewChangeOrder && (
+            <button
+              onClick={onNewChangeOrder}
+              className="w-full bg-orange-600 hover:bg-orange-700 text-white font-semibold py-3 px-4 rounded-xl flex items-center justify-center gap-2 transition-colors shadow-sm"
+            >
+              <Plus size={20} />
+              New Change Order
+            </button>
+          )}
         </div>
       )}
 

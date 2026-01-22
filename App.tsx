@@ -9,6 +9,7 @@ import WorkflowSidebar from './components/WorkflowSidebar';
 import OrderCard from './components/OrderCard';
 import OrderSlideOver from './components/OrderSlideOver';
 import NewOrderModal from './components/NewOrderModal';
+import ChangeOrderModal from './components/ChangeOrderModal';
 import SettingsPage from './components/SettingsPage';
 import ReportsPage from './components/ReportsPage';
 import CustomerSearch from './components/CustomerSearch';
@@ -26,6 +27,7 @@ const AppContent: React.FC = () => {
   const [viewMode, setViewMode] = useState<ViewMode>('Sales');
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [showNewOrder, setShowNewOrder] = useState(false);
+  const [showChangeOrder, setShowChangeOrder] = useState(false);
   const [autoOpenAddItem, setAutoOpenAddItem] = useState(false);
   const [selectedCustomer, setSelectedCustomer] = useState<string>('');
   const [activeView, setActiveView] = useState<'orders' | 'settings' | 'reports' | 'fulfillment' | 'productionFloor'>('orders');
@@ -203,6 +205,49 @@ const AppContent: React.FC = () => {
     }
   };
 
+  const handleCreateChangeOrder = (changeOrder: any) => {
+    // Add creation audit log
+    const changeOrderWithAudit = addAuditLog(
+      changeOrder as Order,
+      'Change order created',
+      null,
+      changeOrder.status || 'Quote',
+      `Created by ${currentUser?.displayName} for parent order ${changeOrder.parentOrderId}`
+    );
+
+    // Update parent order to include this change order in its changeOrderIds array
+    if (changeOrder.parentOrderId) {
+      setOrders(prev => prev.map(o => {
+        if (o.id === changeOrder.parentOrderId) {
+          return {
+            ...o,
+            changeOrderIds: [...(o.changeOrderIds || []), changeOrderWithAudit.id],
+            history: [...o.history, {
+              timestamp: new Date(),
+              userId: currentUser?.id,
+              userName: currentUser?.displayName,
+              action: 'Change order added',
+              previousValue: o.changeOrderIds || [],
+              newValue: [...(o.changeOrderIds || []), changeOrderWithAudit.id],
+              notes: `Change order ${changeOrderWithAudit.orderNumber} created by ${currentUser?.displayName}`
+            }],
+            updatedAt: new Date()
+          };
+        }
+        return o;
+      }));
+    }
+
+    // Add the change order to the orders list
+    setOrders(prev => [changeOrderWithAudit, ...prev]);
+    setShowChangeOrder(false);
+    setCurrentStage('Quote');
+
+    // Automatically open the change order with Add Item form
+    setSelectedOrder(changeOrderWithAudit);
+    setAutoOpenAddItem(true);
+  };
+
   // Handle deleting orders (Admin only)
   const handleDeleteOrders = (orderIds: string[]) => {
     setOrders(prev => prev.filter(o => !orderIds.includes(o.id)));
@@ -330,6 +375,7 @@ const AppContent: React.FC = () => {
               setIsDeadOpportunitiesActive(false);
             }}
             onNewOrder={() => setShowNewOrder(true)}
+            onNewChangeOrder={() => setShowChangeOrder(true)}
             onDeadOpportunitiesClick={() => {
               setIsDeadOpportunitiesActive(true);
               setSelectedCustomer('');
@@ -362,6 +408,7 @@ const AppContent: React.FC = () => {
               setDeadOpportunitySearch('');
             }}
             onNewOrder={() => setShowNewOrder(true)}
+            onNewChangeOrder={() => setShowChangeOrder(true)}
             onDeadOpportunitiesClick={() => {
               setIsDeadOpportunitiesActive(true);
               setSelectedCustomer('');
@@ -653,6 +700,7 @@ const AppContent: React.FC = () => {
                 onDeleteQuote={handleDeleteQuote}
                 initialShowAddItem={autoOpenAddItem}
                 onAddItemOpened={() => setAutoOpenAddItem(false)}
+                allOrders={orders}
               />
             </>
           )}
@@ -662,6 +710,13 @@ const AppContent: React.FC = () => {
             <NewOrderModal
               onClose={() => setShowNewOrder(false)}
               onCreate={handleCreateOrder}
+            />
+          )}
+          {showChangeOrder && (
+            <ChangeOrderModal
+              onClose={() => setShowChangeOrder(false)}
+              onCreate={handleCreateChangeOrder}
+              orders={orders}
             />
           )}
         </>

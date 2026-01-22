@@ -350,6 +350,11 @@ export interface Order {
   closedAt?: Date;
   closedReason?: string;           // Reason for closing (Completed, Cancelled, etc.)
   reopenedFrom?: OrderStatus;      // Track what status to return to if reopened
+
+  // Change Order tracking
+  isChangeOrder?: boolean;         // Flag indicating this is a change order
+  parentOrderId?: string;          // Reference to parent order (for change orders)
+  changeOrderIds?: string[];       // Array of child change order IDs (for parent orders)
 }
 
 export type ViewMode = 'Sales' | 'Production';
@@ -482,7 +487,10 @@ export const SCHEMA_DEFINITION = {
         archivedAt: { type: 'Date', required: false, description: 'Archive timestamp' },
         closedAt: { type: 'Date', required: false, description: 'Order closure timestamp' },
         closedReason: { type: 'string', required: false, description: 'Reason for closing (Completed, Cancelled, etc.)' },
-        reopenedFrom: { type: 'OrderStatus', required: false, description: 'Previous status before closing (for reopening)' }
+        reopenedFrom: { type: 'OrderStatus', required: false, description: 'Previous status before closing (for reopening)' },
+        isChangeOrder: { type: 'boolean', required: false, description: 'Flag indicating this is a change order' },
+        parentOrderId: { type: 'string', required: false, description: 'Reference to parent order (for change orders)' },
+        changeOrderIds: { type: 'string[]', required: false, description: 'Array of child change order IDs (for parent orders)' }
       },
       relationships: {
         lineItems: { type: 'one-to-many', target: 'LineItem', description: 'Order contains multiple line items' },

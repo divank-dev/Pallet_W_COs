@@ -12,6 +12,20 @@ dist
 dist-ssr
 *.local
 
+# Environment variables
+.env
+.env.local
+.env.production
+
+# Supabase
+.supabase
+supabase/.branches
+supabase/.temp
+
+# Data exports (if you create them during migration)
+data-export/
+backups/
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

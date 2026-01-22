@@ -170,6 +170,16 @@ const OrderCard: React.FC<OrderCardProps> = ({ order, viewMode, onClick }) => {
             {formatElapsedTime(elapsedMinutes)}
           </div>
         )}
+        {order.isChangeOrder && (
+          <div className="text-xs font-bold px-2.5 py-1 rounded-full bg-orange-100 text-orange-700 border border-orange-200">
+            Change Order
+          </div>
+        )}
+        {order.changeOrderIds && order.changeOrderIds.length > 0 && (
+          <div className="text-xs font-bold px-2.5 py-1 rounded-full bg-orange-100 text-orange-700 border border-orange-200">
+            {order.changeOrderIds.length} CO{order.changeOrderIds.length !== 1 ? 's' : ''}
+          </div>
+        )}
         {order.dueDate && (
           <div className="text-xs font-medium px-2.5 py-1 rounded-full bg-slate-100 text-slate-600">
             Due: {new Date(order.dueDate).toLocaleDateString()}

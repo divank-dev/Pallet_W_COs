@@ -205,46 +205,42 @@ const AppContent: React.FC = () => {
     }
   };
 
-  const handleCreateChangeOrder = (changeOrder: any) => {
-    // Add creation audit log
-    const changeOrderWithAudit = addAuditLog(
-      changeOrder as Order,
-      'Change order created',
-      null,
-      changeOrder.status || 'Quote',
-      `Created by ${currentUser?.displayName} for parent order ${changeOrder.parentOrderId}`
-    );
-
-    // Update parent order to include this change order in its changeOrderIds array
-    if (changeOrder.parentOrderId) {
-      setOrders(prev => prev.map(o => {
-        if (o.id === changeOrder.parentOrderId) {
-          return {
-            ...o,
-            changeOrderIds: [...(o.changeOrderIds || []), changeOrderWithAudit.id],
-            history: [...o.history, {
-              timestamp: new Date(),
-              userId: currentUser?.id,
-              userName: currentUser?.displayName,
-              action: 'Change order added',
-              previousValue: o.changeOrderIds || [],
-              newValue: [...(o.changeOrderIds || []), changeOrderWithAudit.id],
-              notes: `Change order ${changeOrderWithAudit.orderNumber} created by ${currentUser?.displayName}`
-            }],
-            updatedAt: new Date()
-          };
+  const handleSelectOrderForChangeOrder = (order: Order) => {
+    // Move the order back to Quote stage to add change order items
+    // But preserve the status of existing line items (ordered, received, etc.)
+    const updatedOrder: Order = {
+      ...order,
+      status: 'Quote',
+      hasChangeOrders: true,
+      lastChangeOrderDate: new Date(),
+      updatedAt: new Date(),
+      history: [
+        ...order.history,
+        {
+          timestamp: new Date(),
+          userId: currentUser?.id,
+          userName: currentUser?.displayName,
+          action: 'Change order initiated',
+          previousValue: order.status,
+          newValue: 'Quote',
+          notes: `Order moved back to Quote for change order items by ${currentUser?.displayName}. Existing line item status preserved.`
         }
-        return o;
-      }));
-    }
+      ]
+    };
 
-    // Add the change order to the orders list
-    setOrders(prev => [changeOrderWithAudit, ...prev]);
+    // Update the order in state
+    setOrders(prev => prev.map(o => o.id === order.id ? updatedOrder : o));
+
+    // Close the modal
     setShowChangeOrder(false);
+
+    // Move to Quote stage view
     setCurrentStage('Quote');
 
-    // Automatically open the change order with Add Item form
-    setSelectedOrder(changeOrderWithAudit);
+    // Open the order detail view
+    setSelectedOrder(updatedOrder);
+
+    // Auto-open the add item form so user can add change order items
     setAutoOpenAddItem(true);
   };
 
@@ -715,7 +711,7 @@ const AppContent: React.FC = () => {
           {showChangeOrder && (
             <ChangeOrderModal
               onClose={() => setShowChangeOrder(false)}
-              onCreate={handleCreateChangeOrder}
+              onSelectOrder={handleSelectOrderForChangeOrder}
               orders={orders}
             />
           )}

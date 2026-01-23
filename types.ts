@@ -167,6 +167,11 @@ export interface LineItem {
   cost: number;
   price: number;
 
+  // Change Order Tracking
+  isChangeOrder?: boolean;       // True if this is a change order item
+  changeOrderDate?: Date;        // When this change order item was added
+  originalQuantity?: number;     // Original qty before change (for tracking reductions)
+
   // Stage-specific tracking flags
   ordered: boolean;              // Stage 4: Inventory Order
   received: boolean;             // Stage 6: Inventory Received
@@ -351,10 +356,9 @@ export interface Order {
   closedReason?: string;           // Reason for closing (Completed, Cancelled, etc.)
   reopenedFrom?: OrderStatus;      // Track what status to return to if reopened
 
-  // Change Order tracking
-  isChangeOrder?: boolean;         // Flag indicating this is a change order
-  parentOrderId?: string;          // Reference to parent order (for change orders)
-  changeOrderIds?: string[];       // Array of child change order IDs (for parent orders)
+  // Change Order tracking (line items are marked as change orders, not separate order entities)
+  hasChangeOrders?: boolean;       // True if this order has change order items
+  lastChangeOrderDate?: Date;      // When the most recent change order was added
 }
 
 export type ViewMode = 'Sales' | 'Production';

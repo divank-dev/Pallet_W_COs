@@ -1,26 +1,29 @@
 import React, { useState, useMemo } from 'react';
-import { X, Search, Plus, AlertCircle } from 'lucide-react';
+import { X, Search, Plus, AlertCircle, ArrowLeft } from 'lucide-react';
 import { Order } from '../types';
-import { DEFAULT_PREP_STATUS, DEFAULT_FULFILLMENT, DEFAULT_INVOICE_STATUS, DEFAULT_CLOSEOUT, DEFAULT_ART_CONFIRMATION } from '../constants';
 
 interface ChangeOrderModalProps {
   onClose: () => void;
-  onCreate: (changeOrder: Partial<Order>) => void;
+  onSelectOrder: (order: Order) => void;
   orders: Order[];
 }
 
-const ChangeOrderModal: React.FC<ChangeOrderModalProps> = ({ onClose, onCreate, orders }) => {
+const ChangeOrderModal: React.FC<ChangeOrderModalProps> = ({ onClose, onSelectOrder, orders }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedParentOrder, setSelectedParentOrder] = useState<Order | null>(null);
-  const [changeOrderNotes, setChangeOrderNotes] = useState('');
 
-  // Filter orders that can be parent orders (not archived, not leads, not already change orders)
+  // Filter orders that can have change orders added
+  // Exclude: Leads, Closed, Archived, and anything in Production or later
   const eligibleParentOrders = useMemo(() => {
     return orders.filter(o =>
       !o.isArchived &&
-      !o.isChangeOrder &&
       o.status !== 'Lead' &&
-      o.status !== 'Closed'
+      o.status !== 'Closed' &&
+      // Block change orders once order reaches Production
+      o.status !== 'Production' &&
+      o.status !== 'Fulfillment' &&
+      o.status !== 'Invoice' &&
+      o.status !== 'Closeout'
     );
   }, [orders]);
 
@@ -35,42 +38,12 @@ const ChangeOrderModal: React.FC<ChangeOrderModalProps> = ({ onClose, onCreate, 
     );
   }, [eligibleParentOrders, searchTerm]);
 
-  const handleCreateChangeOrder = () => {
+  const handleConfirmChangeOrder = () => {
     if (!selectedParentOrder) return;
 
-    // Generate change order number based on parent order
-    const changeOrderSuffix = ((selectedParentOrder.changeOrderIds?.length || 0) + 1).toString().padStart(2, '0');
-    const changeOrderNumber = `${selectedParentOrder.orderNumber}-CO${changeOrderSuffix}`;
-
-    const changeOrder: Partial<Order> = {
-      id: changeOrderNumber,
-      orderNumber: changeOrderNumber,
-      customer: selectedParentOrder.customer,
-      customerEmail: selectedParentOrder.customerEmail,
-      customerPhone: selectedParentOrder.customerPhone,
-      projectName: `${selectedParentOrder.projectName} - Change Order ${changeOrderSuffix}`,
-      // Start change order at Quote stage for adding line items
-      status: 'Quote',
-      createdAt: new Date(),
-      dueDate: selectedParentOrder.dueDate,
-      lineItems: [],
-      artStatus: 'Not Started',
-      rushOrder: selectedParentOrder.rushOrder,
-      notes: changeOrderNotes || undefined,
-      prepStatus: { ...DEFAULT_PREP_STATUS },
-      fulfillment: { ...DEFAULT_FULFILLMENT },
-      invoiceStatus: { ...DEFAULT_INVOICE_STATUS },
-      closeoutChecklist: { ...DEFAULT_CLOSEOUT },
-      artConfirmation: { ...DEFAULT_ART_CONFIRMATION },
-      history: [],
-      version: 1,
-      isArchived: false,
-      // Change order specific fields
-      isChangeOrder: true,
-      parentOrderId: selectedParentOrder.id,
-    };
-
-    onCreate(changeOrder);
+    // Pass the selected order back to parent component
+    // The parent will handle moving it back to Quote and opening the detail view
+    onSelectOrder(selectedParentOrder);
   };
 
   return (
@@ -78,8 +51,8 @@ const ChangeOrderModal: React.FC<ChangeOrderModalProps> = ({ onClose, onCreate, 
       <div className="bg-white rounded-2xl w-full max-w-2xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200 max-h-[90vh] flex flex-col">
         <div className="flex justify-between items-center p-6 border-b border-slate-100 bg-orange-50">
           <div>
-            <h2 className="text-xl font-bold text-orange-900">Create Change Order</h2>
-            <p className="text-sm text-orange-600 mt-1">Select the original order to create a change order for</p>
+            <h2 className="text-xl font-bold text-orange-900">Add Change Order Items</h2>
+            <p className="text-sm text-orange-600 mt-1">Select the order to add change order items to</p>
           </div>
           <button onClick={onClose} className="p-2 hover:bg-orange-100 rounded-full transition-colors">
             <X size={20} />
@@ -107,7 +80,7 @@ const ChangeOrderModal: React.FC<ChangeOrderModalProps> = ({ onClose, onCreate, 
                 <div className="text-center py-12 bg-slate-50 rounded-xl border border-slate-200">
                   <AlertCircle size={48} className="mx-auto mb-4 text-slate-300" />
                   <p className="text-slate-500 font-medium">No eligible orders found</p>
-                  <p className="text-slate-400 text-sm mt-1">Change orders can only be created for active orders (not Leads or Closed)</p>
+                  <p className="text-slate-400 text-sm mt-1">Change orders cannot be added to orders in Production or later stages</p>
                 </div>
               ) : filteredOrders.length === 0 ? (
                 <div className="text-center py-12 bg-slate-50 rounded-xl border border-slate-200">
@@ -116,42 +89,47 @@ const ChangeOrderModal: React.FC<ChangeOrderModalProps> = ({ onClose, onCreate, 
                 </div>
               ) : (
                 <div className="space-y-3 max-h-96 overflow-y-auto">
-                  {filteredOrders.map(order => (
-                    <button
-                      key={order.id}
-                      onClick={() => setSelectedParentOrder(order)}
-                      className="w-full text-left p-4 border border-slate-200 rounded-xl hover:border-orange-400 hover:bg-orange-50 transition-all group"
-                    >
-                      <div className="flex items-start justify-between">
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2 mb-1">
-                            <span className="font-bold text-slate-900">{order.orderNumber}</span>
-                            <span className="px-2 py-0.5 bg-blue-100 text-blue-700 text-xs font-bold rounded-full">
-                              {order.status}
-                            </span>
-                            {order.changeOrderIds && order.changeOrderIds.length > 0 && (
-                              <span className="px-2 py-0.5 bg-orange-100 text-orange-700 text-xs font-bold rounded-full">
-                                {order.changeOrderIds.length} CO{order.changeOrderIds.length !== 1 ? 's' : ''}
+                  {filteredOrders.map(order => {
+                    const hasChangeOrders = order.hasChangeOrders;
+                    const changeOrderCount = order.lineItems.filter(li => li.isChangeOrder).length;
+
+                    return (
+                      <button
+                        key={order.id}
+                        onClick={() => setSelectedParentOrder(order)}
+                        className="w-full text-left p-4 border border-slate-200 rounded-xl hover:border-orange-400 hover:bg-orange-50 transition-all group"
+                      >
+                        <div className="flex items-start justify-between">
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2 mb-1">
+                              <span className="font-bold text-slate-900">{order.orderNumber}</span>
+                              <span className="px-2 py-0.5 bg-blue-100 text-blue-700 text-xs font-bold rounded-full">
+                                {order.status}
                               </span>
+                              {hasChangeOrders && (
+                                <span className="px-2 py-0.5 bg-orange-100 text-orange-700 text-xs font-bold rounded-full">
+                                  {changeOrderCount} CO item{changeOrderCount !== 1 ? 's' : ''}
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-sm font-medium text-slate-700">{order.customer}</p>
+                            <p className="text-sm text-slate-500">{order.projectName}</p>
+                            {order.lineItems && order.lineItems.length > 0 && (
+                              <p className="text-xs text-slate-400 mt-1">
+                                {order.lineItems.length} item{order.lineItems.length !== 1 ? 's' : ''} •
+                                {' '}{order.lineItems.reduce((sum, item) => sum + item.qty, 0)} total units
+                              </p>
                             )}
                           </div>
-                          <p className="text-sm font-medium text-slate-700">{order.customer}</p>
-                          <p className="text-sm text-slate-500">{order.projectName}</p>
-                          {order.lineItems && order.lineItems.length > 0 && (
-                            <p className="text-xs text-slate-400 mt-1">
-                              {order.lineItems.length} item{order.lineItems.length !== 1 ? 's' : ''} •
-                              {' '}{order.lineItems.reduce((sum, item) => sum + item.qty, 0)} total units
-                            </p>
-                          )}
-                        </div>
-                        <div className="ml-4">
-                          <div className="w-8 h-8 rounded-full bg-orange-100 group-hover:bg-orange-600 flex items-center justify-center transition-colors">
-                            <Plus size={16} className="text-orange-600 group-hover:text-white transition-colors" />
+                          <div className="ml-4">
+                            <div className="w-8 h-8 rounded-full bg-orange-100 group-hover:bg-orange-600 flex items-center justify-center transition-colors">
+                              <Plus size={16} className="text-orange-600 group-hover:text-white transition-colors" />
+                            </div>
                           </div>
                         </div>
-                      </div>
-                    </button>
-                  ))}
+                      </button>
+                    );
+                  })}
                 </div>
               )}
             </>
@@ -161,38 +139,25 @@ const ChangeOrderModal: React.FC<ChangeOrderModalProps> = ({ onClose, onCreate, 
               <div className="bg-orange-50 border border-orange-200 rounded-xl p-4">
                 <div className="flex items-start justify-between mb-3">
                   <div>
-                    <p className="text-xs font-bold text-orange-600 uppercase mb-1">Parent Order</p>
+                    <p className="text-xs font-bold text-orange-600 uppercase mb-1">Selected Order</p>
                     <p className="font-bold text-slate-900 text-lg">{selectedParentOrder.orderNumber}</p>
                   </div>
                   <button
                     onClick={() => setSelectedParentOrder(null)}
-                    className="text-orange-600 hover:text-orange-700 text-sm font-bold"
+                    className="text-orange-600 hover:text-orange-700 text-sm font-bold flex items-center gap-1"
                   >
+                    <ArrowLeft size={14} />
                     Change
                   </button>
                 </div>
                 <div className="space-y-1 text-sm">
                   <p><span className="font-medium text-slate-700">Customer:</span> {selectedParentOrder.customer}</p>
                   <p><span className="font-medium text-slate-700">Project:</span> {selectedParentOrder.projectName}</p>
-                  <p><span className="font-medium text-slate-700">Status:</span> {selectedParentOrder.status}</p>
+                  <p><span className="font-medium text-slate-700">Current Status:</span> {selectedParentOrder.status}</p>
                   {selectedParentOrder.lineItems && selectedParentOrder.lineItems.length > 0 && (
-                    <p><span className="font-medium text-slate-700">Line Items:</span> {selectedParentOrder.lineItems.length} items ({selectedParentOrder.lineItems.reduce((sum, item) => sum + item.qty, 0)} units)</p>
+                    <p><span className="font-medium text-slate-700">Existing Items:</span> {selectedParentOrder.lineItems.length} items ({selectedParentOrder.lineItems.reduce((sum, item) => sum + item.qty, 0)} units)</p>
                   )}
                 </div>
-              </div>
-
-              {/* Change Order Notes */}
-              <div>
-                <label className="block text-sm font-bold text-slate-700 mb-2">
-                  Change Order Notes
-                </label>
-                <textarea
-                  value={changeOrderNotes}
-                  onChange={(e) => setChangeOrderNotes(e.target.value)}
-                  placeholder="Describe what this change order is for..."
-                  className="w-full px-4 py-3 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-orange-500 focus:border-orange-500 resize-none"
-                  rows={4}
-                />
               </div>
 
               {/* Info Box */}
@@ -200,12 +165,14 @@ const ChangeOrderModal: React.FC<ChangeOrderModalProps> = ({ onClose, onCreate, 
                 <div className="flex items-start gap-3">
                   <AlertCircle size={20} className="text-blue-600 flex-shrink-0 mt-0.5" />
                   <div className="text-sm text-blue-800">
-                    <p className="font-bold mb-1">How Change Orders Work</p>
-                    <ul className="space-y-1 text-blue-700">
-                      <li>• The change order will start at the Quote stage for adding line items</li>
-                      <li>• It requires separate confirmation at Inventory Order and Receipt stages</li>
-                      <li>• At Production, volumes are consolidated with the parent order</li>
-                      <li>• Change orders are viewable alongside the parent at all stages</li>
+                    <p className="font-bold mb-2">What happens next:</p>
+                    <ul className="space-y-1.5 text-blue-700">
+                      <li>• This order will move back to <strong>Quote</strong> stage</li>
+                      <li>• Existing line items retain their status (ordered, received, etc.)</li>
+                      <li>• You can add new items or adjust quantities (negatives allowed)</li>
+                      <li>• Change order items will be shown separately with an orange background</li>
+                      <li>• The order will progress through approval stages for new items</li>
+                      <li>• Both original and change order items must be ready before production</li>
                     </ul>
                   </div>
                 </div>
@@ -223,7 +190,7 @@ const ChangeOrderModal: React.FC<ChangeOrderModalProps> = ({ onClose, onCreate, 
             Cancel
           </button>
           <button
-            onClick={handleCreateChangeOrder}
+            onClick={handleConfirmChangeOrder}
             disabled={!selectedParentOrder}
             className={`flex-1 px-6 py-3 rounded-xl font-bold transition-all ${
               selectedParentOrder
@@ -231,7 +198,7 @@ const ChangeOrderModal: React.FC<ChangeOrderModalProps> = ({ onClose, onCreate, 
                 : 'bg-slate-200 text-slate-400 cursor-not-allowed'
             }`}
           >
-            Create Change Order
+            Add Change Order Items
           </button>
         </div>
       </div>

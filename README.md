@@ -401,7 +401,7 @@ Pallet 2.0 uses Supabase as its complete backend infrastructure, providing:
    npm run dev
    ```
    - Navigate to http://localhost:3000
-   - Login with: `admin` / `admin`
+   - Login with your administrator credentials
    - If successful, Supabase is connected!
 
 ### Row Level Security (RLS)

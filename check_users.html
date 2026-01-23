@@ -1,0 +1,16 @@
+<!DOCTYPE html>
+<html>
+<body>
+<h1>Check LocalStorage Users</h1>
+<pre id="output"></pre>
+<script>
+const orgData = localStorage.getItem('pallet-org-hierarchy');
+if (orgData) {
+  const org = JSON.parse(orgData);
+  document.getElementById('output').textContent = JSON.stringify(org, null, 2);
+} else {
+  document.getElementById('output').textContent = 'No org data found in localStorage';
+}
+</script>
+</body>
+</html>

@@ -1736,7 +1736,8 @@ interface Vendor {
 }
 
 const OrderSlideOver: React.FC<OrderSlideOverProps> = ({ order, viewMode, onClose, onUpdate, onDeleteQuote, initialShowAddItem, onAddItemOpened, allOrders = [] }) => {
-  const { permissions } = useAuth();
+  const { permissions, currentUser } = useAuth();
+  const isProduction = currentUser?.role === 'Production';
 
   // Simplified line items structure for new change order system
   const lineItemsData = useMemo(() => {
@@ -2584,8 +2585,8 @@ const OrderSlideOver: React.FC<OrderSlideOverProps> = ({ order, viewMode, onClos
                       <th className="px-3 py-3">Size</th>
                       <th className="px-3 py-3 text-center">Qty</th>
                       <th className="px-3 py-3">Decoration</th>
-                      <th className="px-3 py-3 text-right">Price</th>
-                      <th className="px-3 py-3 text-right">Total</th>
+                      {!isProduction && <th className="px-3 py-3 text-right">Price</th>}
+                      {!isProduction && <th className="px-3 py-3 text-right">Total</th>}
                       <th className="px-3 py-3 w-10"></th>
                     </tr>
                   </thead>
@@ -2623,10 +2624,12 @@ const OrderSlideOver: React.FC<OrderSlideOverProps> = ({ order, viewMode, onClos
                                 <span className="text-xs text-slate-400">{item.decorationPlacements} placement(s)</span>
                               </div>
                             </td>
-                            <td className="px-3 py-3 text-right text-slate-600">${item.price.toFixed(2)}</td>
-                            <td className="px-3 py-3 text-right font-bold text-slate-900">
-                              ${(item.price * item.qty).toFixed(2)}
-                            </td>
+                            {!isProduction && <td className="px-3 py-3 text-right text-slate-600">${item.price.toFixed(2)}</td>}
+                            {!isProduction && (
+                              <td className="px-3 py-3 text-right font-bold text-slate-900">
+                                ${(item.price * item.qty).toFixed(2)}
+                              </td>
+                            )}
                             <td className="px-3 py-3 text-right">
                               <button
                                 onClick={() => removeItem(item.id)}
@@ -2683,12 +2686,14 @@ const OrderSlideOver: React.FC<OrderSlideOverProps> = ({ order, viewMode, onClos
                                 <span className="text-xs text-slate-400">{item.decorationPlacements} placement(s)</span>
                               </div>
                             </td>
-                            <td className="px-3 py-3 text-right text-slate-600">${item.price.toFixed(2)}</td>
-                            <td className={`px-3 py-3 text-right font-bold ${
-                              item.qty < 0 ? 'text-red-600' : 'text-slate-900'
-                            }`}>
-                              {item.qty > 0 ? '+' : ''}${(item.price * item.qty).toFixed(2)}
-                            </td>
+                            {!isProduction && <td className="px-3 py-3 text-right text-slate-600">${item.price.toFixed(2)}</td>}
+                            {!isProduction && (
+                              <td className={`px-3 py-3 text-right font-bold ${
+                                item.qty < 0 ? 'text-red-600' : 'text-slate-900'
+                              }`}>
+                                {item.qty > 0 ? '+' : ''}${(item.price * item.qty).toFixed(2)}
+                              </td>
+                            )}
                             <td className="px-3 py-3 text-right">
                               <button
                                 onClick={() => removeItem(item.id)}
@@ -2714,8 +2719,8 @@ const OrderSlideOver: React.FC<OrderSlideOverProps> = ({ order, viewMode, onClos
                 </table>
               </div>
 
-              {/* Summary Section */}
-              {(order.lineItems?.length || 0) > 0 && (
+              {/* Summary Section - Hide for Production users */}
+              {!isProduction && (order.lineItems?.length || 0) > 0 && (
                 <div className="bg-slate-50 border-t border-slate-200">
                   {/* Breakdown if has change orders */}
                   {lineItemsData.hasChangeOrders && (
@@ -2867,7 +2872,7 @@ const OrderSlideOver: React.FC<OrderSlideOverProps> = ({ order, viewMode, onClos
           <div className="space-y-6">
             <div className="bg-blue-50 border border-blue-100 p-6 rounded-2xl text-center">
               <h3 className="text-blue-900 font-bold text-lg mb-2">Quote Pending Approval</h3>
-              <p className="text-blue-700 mb-2">Grand Total: <span className="font-bold">${grandTotal.toFixed(2)}</span></p>
+              {!isProduction && <p className="text-blue-700 mb-2">Grand Total: <span className="font-bold">${grandTotal.toFixed(2)}</span></p>}
               <p className="text-blue-600 text-sm mb-6">{order.lineItems?.length || 0} line items</p>
               <div className="flex gap-3 justify-center">
                 {previousStage && (
@@ -4099,8 +4104,8 @@ const OrderSlideOver: React.FC<OrderSlideOverProps> = ({ order, viewMode, onClos
                             <th className="text-left px-4 py-3 font-bold">Color</th>
                             <th className="text-left px-4 py-3 font-bold">Size</th>
                             <th className="text-right px-4 py-3 font-bold">Qty</th>
-                            <th className="text-right px-4 py-3 font-bold">Unit Cost</th>
-                            <th className="text-right px-4 py-3 font-bold">Total</th>
+                            {!isProduction && <th className="text-right px-4 py-3 font-bold">Unit Cost</th>}
+                            {!isProduction && <th className="text-right px-4 py-3 font-bold">Total</th>}
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100">
@@ -4111,23 +4116,25 @@ const OrderSlideOver: React.FC<OrderSlideOverProps> = ({ order, viewMode, onClos
                               <td className="px-4 py-3">{item.color}</td>
                               <td className="px-4 py-3">{item.size}</td>
                               <td className="px-4 py-3 text-right font-bold">{item.qty}</td>
-                              <td className="px-4 py-3 text-right">${item.cost?.toFixed(2) || '0.00'}</td>
-                              <td className="px-4 py-3 text-right font-bold">${((item.cost || 0) * item.qty).toFixed(2)}</td>
+                              {!isProduction && <td className="px-4 py-3 text-right">${item.cost?.toFixed(2) || '0.00'}</td>}
+                              {!isProduction && <td className="px-4 py-3 text-right font-bold">${((item.cost || 0) * item.qty).toFixed(2)}</td>}
                             </tr>
                           ))}
                         </tbody>
-                        <tfoot className="bg-slate-100 border-t-2 border-slate-300">
-                          <tr>
-                            <td colSpan={4} className="px-4 py-3 text-right font-bold">Total Items:</td>
-                            <td className="px-4 py-3 text-right font-bold">
-                              {order.lineItems?.reduce((sum, item) => sum + item.qty, 0) || 0}
-                            </td>
-                            <td className="px-4 py-3 text-right font-bold">Subtotal:</td>
-                            <td className="px-4 py-3 text-right font-bold">
-                              ${order.lineItems?.reduce((sum, item) => sum + ((item.cost || 0) * item.qty), 0).toFixed(2) || '0.00'}
-                            </td>
-                          </tr>
-                        </tfoot>
+                        {!isProduction && (
+                          <tfoot className="bg-slate-100 border-t-2 border-slate-300">
+                            <tr>
+                              <td colSpan={4} className="px-4 py-3 text-right font-bold">Total Items:</td>
+                              <td className="px-4 py-3 text-right font-bold">
+                                {order.lineItems?.reduce((sum, item) => sum + item.qty, 0) || 0}
+                              </td>
+                              <td className="px-4 py-3 text-right font-bold">Subtotal:</td>
+                              <td className="px-4 py-3 text-right font-bold">
+                                ${order.lineItems?.reduce((sum, item) => sum + ((item.cost || 0) * item.qty), 0).toFixed(2) || '0.00'}
+                              </td>
+                            </tr>
+                          </tfoot>
+                        )}
                       </table>
                     </div>
 

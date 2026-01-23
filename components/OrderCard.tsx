@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { AlertCircle, Clock, User, DollarSign, Zap, Target, Calendar, ThermometerSun } from 'lucide-react';
 import { Order, ViewMode, STAGE_NUMBER } from '../types';
+import { useAuth } from '../contexts/AuthContext';
 
 interface OrderCardProps {
   order: Order;
@@ -9,6 +10,7 @@ interface OrderCardProps {
 }
 
 const OrderCard: React.FC<OrderCardProps> = ({ order, viewMode, onClick }) => {
+  const { currentUser } = useAuth();
   const [elapsedMinutes, setElapsedMinutes] = useState(0);
 
   useEffect(() => {
@@ -191,7 +193,7 @@ const OrderCard: React.FC<OrderCardProps> = ({ order, viewMode, onClick }) => {
         <div className="text-xs text-slate-400">
           {order.lineItems.length} items
         </div>
-        {viewMode === 'Sales' && (
+        {viewMode === 'Sales' && currentUser?.role !== 'Production' && (
           <div className="flex items-center text-blue-700 font-bold">
             <DollarSign size={16} />
             {totalPrice.toLocaleString()}

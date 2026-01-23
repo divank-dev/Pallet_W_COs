@@ -19,11 +19,26 @@ interface WorkflowSidebarProps {
 }
 
 const WorkflowSidebar: React.FC<WorkflowSidebarProps> = ({ currentStage, counts, deadOpportunitiesCount = 0, onStageSelect, onNewOrder, onNewChangeOrder, onDeadOpportunitiesClick, isDeadOpportunitiesActive, onProductionFloorClick, isProductionFloorActive }) => {
-  const { permissions } = useAuth();
+  const { permissions, currentUser } = useAuth();
 
-  // Separate Lead from the rest of the workflow stages
-  const leadStage = ORDER_STAGES[0]; // 'Lead'
-  const workflowStages = ORDER_STAGES.slice(1); // Everything else
+  // Filter stages based on user role
+  const getVisibleStages = () => {
+    // Production role: only show stages 3-8 (Approval through Production)
+    // Indices 2-7 in ORDER_STAGES array
+    if (currentUser?.role === 'Production') {
+      return ORDER_STAGES.slice(2, 8); // Approval, Art Confirmation, Inventory Order, Production Prep, Inventory Received, Production
+    }
+
+    // All other roles: show all stages
+    return ORDER_STAGES;
+  };
+
+  const visibleStages = getVisibleStages();
+
+  // Separate Lead from the rest of the workflow stages (if visible)
+  const leadStage = visibleStages[0]; // First stage in visible list
+  const workflowStages = visibleStages.slice(1); // Everything else
+  const showLeadSection = currentUser?.role !== 'Production'; // Production doesn't see Lead
 
   return (
     <div className="w-72 bg-white border-r border-slate-200 flex flex-col">
@@ -49,72 +64,76 @@ const WorkflowSidebar: React.FC<WorkflowSidebarProps> = ({ currentStage, counts,
       )}
 
       <div className="flex-1 overflow-y-auto px-3 pb-6">
-        {/* Sales Funnel Section */}
-        <div className="px-3 mb-2 text-xs font-bold text-emerald-600 uppercase tracking-wider flex items-center gap-2">
-          <Target size={12} />
-          Sales Funnel
-        </div>
-        <nav className="space-y-1 mb-4">
-          <button
-            onClick={() => onStageSelect(leadStage)}
-            className={`w-full flex items-center justify-between px-3 py-2.5 rounded-lg transition-all group ${
-              currentStage === leadStage && !isDeadOpportunitiesActive
-                ? 'bg-emerald-50 text-emerald-700'
-                : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
-            }`}
-          >
-            <div className="flex items-center gap-3">
-              <div className={`w-1.5 h-1.5 rounded-full ${
-                currentStage === leadStage && !isDeadOpportunitiesActive ? 'bg-emerald-600' : 'bg-slate-300'
-              }`} />
-              <span className="text-sm font-medium">{leadStage}</span>
+        {/* Sales Funnel Section - Only show for non-Production users */}
+        {showLeadSection && (
+          <>
+            <div className="px-3 mb-2 text-xs font-bold text-emerald-600 uppercase tracking-wider flex items-center gap-2">
+              <Target size={12} />
+              Sales Funnel
             </div>
-            <div className="flex items-center gap-2">
-              <span className={`text-xs px-2 py-0.5 rounded-full font-bold ${
-                currentStage === leadStage && !isDeadOpportunitiesActive ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500'
-              }`}>
-                {counts[leadStage] || 0}
-              </span>
-              <ChevronRight size={14} className={`opacity-0 group-hover:opacity-100 transition-opacity ${
-                currentStage === leadStage && !isDeadOpportunitiesActive ? 'text-emerald-400' : 'text-slate-300'
-              }`} />
-            </div>
-          </button>
+            <nav className="space-y-1 mb-4">
+              <button
+                onClick={() => onStageSelect(leadStage)}
+                className={`w-full flex items-center justify-between px-3 py-2.5 rounded-lg transition-all group ${
+                  currentStage === leadStage && !isDeadOpportunitiesActive
+                    ? 'bg-emerald-50 text-emerald-700'
+                    : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+                }`}
+              >
+                <div className="flex items-center gap-3">
+                  <div className={`w-1.5 h-1.5 rounded-full ${
+                    currentStage === leadStage && !isDeadOpportunitiesActive ? 'bg-emerald-600' : 'bg-slate-300'
+                  }`} />
+                  <span className="text-sm font-medium">{leadStage}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className={`text-xs px-2 py-0.5 rounded-full font-bold ${
+                    currentStage === leadStage && !isDeadOpportunitiesActive ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500'
+                  }`}>
+                    {counts[leadStage] || 0}
+                  </span>
+                  <ChevronRight size={14} className={`opacity-0 group-hover:opacity-100 transition-opacity ${
+                    currentStage === leadStage && !isDeadOpportunitiesActive ? 'text-emerald-400' : 'text-slate-300'
+                  }`} />
+                </div>
+              </button>
 
-          {/* Dead Opportunities */}
-          <button
-            onClick={onDeadOpportunitiesClick}
-            className={`w-full flex items-center justify-between px-3 py-2.5 rounded-lg transition-all group ${
-              isDeadOpportunitiesActive
-                ? 'bg-red-50 text-red-700'
-                : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
-            }`}
-          >
-            <div className="flex items-center gap-3">
-              <div className={`w-5 h-5 rounded-full flex items-center justify-center ${
-                isDeadOpportunitiesActive
-                  ? 'bg-red-600 text-white'
-                  : 'bg-red-100 text-red-500'
-              }`}>
-                <XCircle size={12} />
-              </div>
-              <span className="text-sm font-medium">Dead Opportunities</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <span className={`text-xs px-2 py-0.5 rounded-full font-bold ${
-                isDeadOpportunitiesActive ? 'bg-red-100 text-red-700' : 'bg-red-50 text-red-500'
-              }`}>
-                {deadOpportunitiesCount}
-              </span>
-              <ChevronRight size={14} className={`opacity-0 group-hover:opacity-100 transition-opacity ${
-                isDeadOpportunitiesActive ? 'text-red-400' : 'text-slate-300'
-              }`} />
-            </div>
-          </button>
-        </nav>
+              {/* Dead Opportunities */}
+              <button
+                onClick={onDeadOpportunitiesClick}
+                className={`w-full flex items-center justify-between px-3 py-2.5 rounded-lg transition-all group ${
+                  isDeadOpportunitiesActive
+                    ? 'bg-red-50 text-red-700'
+                    : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+                }`}
+              >
+                <div className="flex items-center gap-3">
+                  <div className={`w-5 h-5 rounded-full flex items-center justify-center ${
+                    isDeadOpportunitiesActive
+                      ? 'bg-red-600 text-white'
+                      : 'bg-red-100 text-red-500'
+                  }`}>
+                    <XCircle size={12} />
+                  </div>
+                  <span className="text-sm font-medium">Dead Opportunities</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className={`text-xs px-2 py-0.5 rounded-full font-bold ${
+                    isDeadOpportunitiesActive ? 'bg-red-100 text-red-700' : 'bg-red-50 text-red-500'
+                  }`}>
+                    {deadOpportunitiesCount}
+                  </span>
+                  <ChevronRight size={14} className={`opacity-0 group-hover:opacity-100 transition-opacity ${
+                    isDeadOpportunitiesActive ? 'text-red-400' : 'text-slate-300'
+                  }`} />
+                </div>
+              </button>
+            </nav>
 
-        {/* Divider */}
-        <div className="mx-3 border-t border-slate-200 my-3" />
+            {/* Divider */}
+            <div className="mx-3 border-t border-slate-200 my-3" />
+          </>
+        )}
 
         {/* Workflow Section */}
         <div className="px-3 mb-2 text-xs font-bold text-slate-400 uppercase tracking-wider">
@@ -158,42 +177,46 @@ const WorkflowSidebar: React.FC<WorkflowSidebarProps> = ({ currentStage, counts,
         {/* Divider */}
         <div className="mx-3 border-t border-slate-200 my-3" />
 
-        {/* Closed Orders Section */}
-        <div className="px-3 mb-2 text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-2">
-          <Archive size={12} />
-          Closed
-        </div>
-        <nav className="space-y-1">
-          <button
-            onClick={() => onStageSelect('Closed')}
-            className={`w-full flex items-center justify-between px-3 py-2.5 rounded-lg transition-all group ${
-              currentStage === 'Closed'
-                ? 'bg-slate-100 text-slate-700'
-                : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
-            }`}
-          >
-            <div className="flex items-center gap-3">
-              <div className={`w-5 h-5 rounded-full flex items-center justify-center ${
-                currentStage === 'Closed'
-                  ? 'bg-slate-600 text-white'
-                  : 'bg-slate-200 text-slate-400'
-              }`}>
-                <Archive size={12} />
-              </div>
-              <span className="text-sm font-medium">Closed Orders</span>
+        {/* Closed Orders Section - Only show for non-Production users */}
+        {showLeadSection && (
+          <>
+            <div className="px-3 mb-2 text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-2">
+              <Archive size={12} />
+              Closed
             </div>
-            <div className="flex items-center gap-2">
-              <span className={`text-xs px-2 py-0.5 rounded-full font-bold ${
-                currentStage === 'Closed' ? 'bg-slate-200 text-slate-700' : 'bg-slate-100 text-slate-500'
-              }`}>
-                {counts['Closed'] || 0}
-              </span>
-              <ChevronRight size={14} className={`opacity-0 group-hover:opacity-100 transition-opacity ${
-                currentStage === 'Closed' ? 'text-slate-400' : 'text-slate-300'
-              }`} />
-            </div>
-          </button>
-        </nav>
+            <nav className="space-y-1">
+              <button
+                onClick={() => onStageSelect('Closed')}
+                className={`w-full flex items-center justify-between px-3 py-2.5 rounded-lg transition-all group ${
+                  currentStage === 'Closed'
+                    ? 'bg-slate-100 text-slate-700'
+                    : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+                }`}
+              >
+                <div className="flex items-center gap-3">
+                  <div className={`w-5 h-5 rounded-full flex items-center justify-center ${
+                    currentStage === 'Closed'
+                      ? 'bg-slate-600 text-white'
+                      : 'bg-slate-200 text-slate-400'
+                  }`}>
+                    <Archive size={12} />
+                  </div>
+                  <span className="text-sm font-medium">Closed Orders</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className={`text-xs px-2 py-0.5 rounded-full font-bold ${
+                    currentStage === 'Closed' ? 'bg-slate-200 text-slate-700' : 'bg-slate-100 text-slate-500'
+                  }`}>
+                    {counts['Closed'] || 0}
+                  </span>
+                  <ChevronRight size={14} className={`opacity-0 group-hover:opacity-100 transition-opacity ${
+                    currentStage === 'Closed' ? 'text-slate-400' : 'text-slate-300'
+                  }`} />
+                </div>
+              </button>
+            </nav>
+          </>
+        )}
 
         {/* Operations Section - only show if user can access Production Floor */}
         {permissions.canAccessProductionFloor && (

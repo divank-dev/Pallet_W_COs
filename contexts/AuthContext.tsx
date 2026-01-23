@@ -2,7 +2,7 @@ import React, { createContext, useContext, useState, useEffect, ReactNode, useMe
 import { User, UserRole, OrgHierarchy, AuthState } from '../types';
 import { Permissions, getPermissions } from '../utils/permissions';
 
-// Default admin user
+// Default test users for all roles
 const DEFAULT_ADMIN: User = {
   id: 'admin-001',
   username: 'admin',
@@ -15,9 +15,69 @@ const DEFAULT_ADMIN: User = {
   createdAt: new Date()
 };
 
-// Default org hierarchy
+const DEFAULT_MANAGER: User = {
+  id: 'manager-001',
+  username: 'manager',
+  password: 'manager',
+  displayName: 'Manager User',
+  email: 'manager@company.com',
+  role: 'Manager',
+  department: 'Administration',
+  isActive: true,
+  createdAt: new Date()
+};
+
+const DEFAULT_SALES: User = {
+  id: 'sales-001',
+  username: 'sales',
+  password: 'sales',
+  displayName: 'Sales User',
+  email: 'sales@company.com',
+  role: 'Sales',
+  department: 'Sales',
+  isActive: true,
+  createdAt: new Date()
+};
+
+const DEFAULT_PRODUCTION: User = {
+  id: 'production-001',
+  username: 'production',
+  password: 'production',
+  displayName: 'Production User',
+  email: 'production@company.com',
+  role: 'Production',
+  department: 'Production',
+  isActive: true,
+  createdAt: new Date()
+};
+
+const DEFAULT_FULFILLMENT: User = {
+  id: 'fulfillment-001',
+  username: 'fulfillment',
+  password: 'fulfillment',
+  displayName: 'Fulfillment User',
+  email: 'fulfillment@company.com',
+  role: 'Fulfillment',
+  department: 'Fulfillment',
+  isActive: true,
+  createdAt: new Date()
+};
+
+const DEFAULT_READONLY: User = {
+  id: 'readonly-001',
+  username: 'readonly',
+  password: 'readonly',
+  displayName: 'ReadOnly User',
+  email: 'readonly@company.com',
+  role: 'ReadOnly',
+  department: 'Administration',
+  isActive: true,
+  createdAt: new Date()
+};
+
+// Default org hierarchy with all test users
 const DEFAULT_ORG: OrgHierarchy = {
-  users: [DEFAULT_ADMIN],
+  users: [DEFAULT_ADMIN, DEFAULT_MANAGER, DEFAULT_SALES, DEFAULT_PRODUCTION, DEFAULT_FULFILLMENT, DEFAULT_READONLY],
   departments: ['Administration', 'Sales', 'Production', 'Fulfillment'],
   lastUpdatedAt: new Date()
 };

@@ -2860,6 +2860,7 @@ GET    /api/export/lineitems    # Line items CSV`}</pre>
                           </td>
                           <td className="px-4 py-3 text-right">
                             <div className="flex items-center justify-end gap-2">
+                              {/* Deactivate button for active users */}
                               {permissions.canDeleteUsers && user.id !== currentUser?.id && user.isActive && (
                                 <button
                                   onClick={() => deleteUser(user.id)}
@@ -2867,6 +2868,17 @@ GET    /api/export/lineitems    # Line items CSV`}</pre>
                                   title="Deactivate user"
                                 >
                                   <Trash2 size={16} />
+                                </button>
+                              )}
+                              {/* Reactivate button for inactive users */}
+                              {permissions.canManageUsers && !user.isActive && (
+                                <button
+                                  onClick={() => updateUser(user.id, { isActive: true })}
+                                  className="px-3 py-1.5 text-green-600 hover:text-white hover:bg-green-600 border border-green-600 rounded-lg transition-colors text-sm font-medium flex items-center gap-1"
+                                  title="Reactivate user"
+                                >
+                                  <CheckCircle size={14} />
+                                  Reactivate
                                 </button>
                               )}
                               {user.id === currentUser?.id && (

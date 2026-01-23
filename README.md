@@ -68,22 +68,37 @@ Pallet 2.0 is a comprehensive order management system designed specifically for 
 ## 🛠️ Technology Stack
 
 ### Frontend
-- **React 18+** - Modern UI library
-- **TypeScript 5+** - Type-safe development
-- **Vite** - Lightning-fast build tool
-- **Tailwind CSS** - Utility-first styling
-- **Lucide React** - Beautiful icons
+- **React 18.2+** - Modern UI library with hooks and concurrent features
+- **TypeScript 5.2+** - Type-safe development with strict mode enabled
+- **Vite 6.4+** - Lightning-fast build tool with Hot Module Replacement (HMR)
+- **Tailwind CSS 3.x** - Utility-first styling framework
+- **Lucide React** - Beautiful, customizable icon library (800+ icons)
 
-### Backend
-- **Supabase** - PostgreSQL database, auth, and storage
-- **PostgreSQL 15+** - Robust relational database
-- **Row Level Security** - Database-level permissions
-- **Real-time subscriptions** - Live updates
+### Backend & Database
+- **Supabase** - Complete backend-as-a-service platform
+  - **PostgreSQL 15+** - Robust relational database
+  - **Authentication** - Built-in user management with JWT tokens
+  - **Storage** - File storage for artwork and documents
+  - **Row Level Security (RLS)** - Database-level access control
+  - **Real-time subscriptions** - Live data updates
+  - **RESTful API** - Auto-generated from database schema
+  - **Connection Pooling** - Built-in Supavisor for scalability
 
-### Development
-- **ESLint** - Code quality
-- **TypeScript** - Type safety
+### State Management
+- **React Context API** - Global state for auth and user management
+- **React Hooks** - useState, useEffect, useMemo for local state
+- **LocalStorage** - Client-side persistence for settings
+
+### Development Tools
+- **ESLint** - Code quality and consistency
+- **TypeScript Compiler** - Type checking and transpilation
 - **Git** - Version control
+- **npm** - Package management
+- **VS Code** - Recommended IDE with TypeScript support
+
+### Third-Party Libraries
+- **xlsx** - Excel import/export functionality
+- **date-fns** (optional) - Date manipulation utilities
 
 ---
 
@@ -115,15 +130,25 @@ Pallet 2.0 is a comprehensive order management system designed specifically for 
 
    Edit `.env.local` and add:
    ```env
-   # Gemini API (optional - for AI features)
-   GEMINI_API_KEY=your_gemini_api_key_here
-
    # Supabase Configuration (required)
    VITE_SUPABASE_URL=https://your-project.supabase.co
    VITE_SUPABASE_ANON_KEY=your_supabase_anon_key_here
+
+   # Optional: AI Features (Gemini)
+   GEMINI_API_KEY=your_gemini_api_key_here
    ```
 
-4. **Set up database**:
+   **How to get your Supabase keys:**
+   - Go to your [Supabase Dashboard](https://app.supabase.com)
+   - Select your project
+   - Go to **Settings** → **API**
+   - Copy:
+     - **Project URL** → `VITE_SUPABASE_URL`
+     - **anon/public key** → `VITE_SUPABASE_ANON_KEY`
+
+   ⚠️ **Important**: Never commit `.env.local` to version control. The anon key is safe to use in client-side code as it's protected by Row Level Security (RLS) policies.
+
+4. **Set up Supabase database**:
    ```bash
    # Run migration in Supabase SQL Editor
    # Copy contents of supabase/migrations/20240122_clean_start.sql
@@ -306,6 +331,149 @@ interface Order {
 ```
 
 **[Learn More About Change Orders](CHANGE_ORDER_WORKFLOW.md)**
+
+---
+
+## ⚙️ Supabase Configuration
+
+### Overview
+
+Pallet 2.0 uses Supabase as its complete backend infrastructure, providing:
+- **Database**: PostgreSQL 15+ with full SQL support
+- **Authentication**: User management with JWT tokens
+- **Storage**: File uploads for artwork and documents
+- **API**: Auto-generated RESTful API
+- **Real-time**: WebSocket subscriptions for live updates
+
+### Getting Your Supabase Keys
+
+1. **Create a Supabase Project**:
+   - Go to [Supabase Dashboard](https://app.supabase.com)
+   - Click "New Project"
+   - Choose organization and project name
+   - Select a region close to your users
+   - Set a strong database password (save this securely!)
+
+2. **Get API Keys**:
+   - In your project dashboard, go to **Settings** → **API**
+   - You'll see three keys:
+     - **anon/public key** ✅ Use this (safe for client-side)
+     - **service_role key** ⚠️ Never expose (server-side only)
+     - **Project URL** ✅ Use this
+
+3. **Configure Environment Variables**:
+   ```env
+   VITE_SUPABASE_URL=https://abcdefghijk.supabase.co
+   VITE_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+   ```
+
+### Key Types Explained
+
+| Key Type | Usage | Safe for Client? | Purpose |
+|----------|-------|------------------|---------|
+| **Project URL** | `VITE_SUPABASE_URL` | ✅ Yes | API endpoint |
+| **anon/public** | `VITE_SUPABASE_ANON_KEY` | ✅ Yes | Client requests (protected by RLS) |
+| **service_role** | Never use in client | ❌ No | Bypasses RLS (server-only) |
+
+### Database Setup
+
+1. **Run Migration Script**:
+   - Open Supabase Dashboard → SQL Editor
+   - Create new query
+   - Copy contents of `supabase/migrations/20240122_clean_start.sql`
+   - Paste and click "Run"
+   - Wait for "Success" message
+
+2. **Verify Tables Created**:
+   - Go to **Table Editor** in Supabase Dashboard
+   - You should see:
+     - `users`
+     - `customers`
+     - `orders`
+     - `line_items`
+     - `art_files`
+     - `status_change_logs`
+     - `products`
+     - `productivity_entries`
+
+3. **Test Connection**:
+   ```bash
+   npm run dev
+   ```
+   - Navigate to http://localhost:3000
+   - Login with: `admin` / `admin`
+   - If successful, Supabase is connected!
+
+### Row Level Security (RLS)
+
+All tables have RLS policies that enforce permissions:
+- **Admin**: Full access to all data
+- **Manager**: Can manage users, view all orders
+- **Sales**: Can create/edit orders, view sales data
+- **Production**: View stages 3-8, no financial data
+- **Fulfillment**: View fulfillment stages
+- **ReadOnly**: View-only access
+
+RLS policies are defined in the migration script and enforced at the database level.
+
+### Storage Configuration (Optional)
+
+For artwork file uploads:
+
+1. **Create Storage Bucket**:
+   - Supabase Dashboard → Storage
+   - Create bucket: `artwork`
+   - Set public: No (private)
+
+2. **Set RLS Policies**:
+   ```sql
+   -- Allow authenticated users to upload
+   CREATE POLICY "Authenticated users can upload"
+   ON storage.objects FOR INSERT
+   TO authenticated
+   WITH CHECK (bucket_id = 'artwork');
+
+   -- Allow users to read their organization's files
+   CREATE POLICY "Users can read artwork"
+   ON storage.objects FOR SELECT
+   TO authenticated
+   USING (bucket_id = 'artwork');
+   ```
+
+### Environment Variables Reference
+
+```env
+# === Required ===
+VITE_SUPABASE_URL=https://your-project.supabase.co
+VITE_SUPABASE_ANON_KEY=your_anon_key_here
+
+# === Optional ===
+# AI Features (Gemini API for smart suggestions)
+GEMINI_API_KEY=your_gemini_api_key
+
+# Development
+NODE_ENV=development
+
+# Production
+# NODE_ENV=production
+# VITE_API_URL=https://api.yourproduction.com
+```
+
+### Troubleshooting
+
+**"Failed to connect to Supabase"**:
+- Verify `VITE_SUPABASE_URL` is correct
+- Check anon key is not expired
+- Ensure project is not paused (free tier pauses after 1 week inactivity)
+
+**"User not authenticated"**:
+- Clear browser localStorage
+- Check RLS policies are active
+- Verify user exists in database
+
+**"Table not found"**:
+- Run migration script again
+- Check table names match exactly (case-sensitive)
 
 ---
 

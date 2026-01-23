@@ -100,6 +100,7 @@ interface AuthContextType {
   addUser: (user: Omit<User, 'id' | 'createdAt'>) => void;
   updateUser: (userId: string, updates: Partial<User>) => void;
   deleteUser: (userId: string) => void;
+  permanentlyDeleteUser: (userId: string) => boolean;
   importUsersFromCSV: (csvContent: string) => { success: number; errors: string[] };
 
   // Helpers
@@ -253,6 +254,32 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }));
   };
 
+  const permanentlyDeleteUser = (userId: string): boolean => {
+    const userToDelete = orgHierarchy.users.find(u => u.id === userId);
+
+    // Only allow permanent deletion of inactive users
+    if (!userToDelete || userToDelete.isActive) {
+      console.error('Can only permanently delete inactive users');
+      return false;
+    }
+
+    // Don't allow deleting yourself
+    if (userId === currentUser?.id) {
+      console.error('Cannot delete your own account');
+      return false;
+    }
+
+    // Permanently remove the user from the array
+    setOrgHierarchy(prev => ({
+      ...prev,
+      users: prev.users.filter(u => u.id !== userId),
+      lastUpdatedAt: new Date(),
+      lastUpdatedBy: currentUser?.id
+    }));
+
+    return true;
+  };
+
   const importUsersFromCSV = (csvContent: string): { success: number; errors: string[] } => {
     const lines = csvContent.trim().split('\n');
     const errors: string[] = [];
@@ -375,6 +402,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       addUser,
       updateUser,
       deleteUser,
+      permanentlyDeleteUser,
       importUsersFromCSV,
       getUserById,
       getUsersByRole,

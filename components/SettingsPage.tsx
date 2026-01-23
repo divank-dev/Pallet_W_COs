@@ -65,7 +65,7 @@ const DEFAULT_COMPANY_SETTINGS: CompanySettings = {
 
 const SettingsPage: React.FC<SettingsPageProps> = ({ orders, onClose, onDeleteOrders }) => {
   const [activeTab, setActiveTab] = useState<SettingsTab>('data');
-  const { currentUser, orgHierarchy, addUser, updateUser, deleteUser, importUsersFromCSV, logout, permissions } = useAuth();
+  const { currentUser, orgHierarchy, addUser, updateUser, deleteUser, permanentlyDeleteUser, importUsersFromCSV, logout, permissions } = useAuth();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Order deletion state (Admin only)
@@ -78,6 +78,9 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ orders, onClose, onDeleteOr
   const [showAddUser, setShowAddUser] = useState(false);
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [importResults, setImportResults] = useState<{ success: number; errors: string[] } | null>(null);
+  const [userToDelete, setUserToDelete] = useState<User | null>(null);
+  const [showUserDeleteConfirm, setShowUserDeleteConfirm] = useState(false);
+  const [userDeleteConfirmText, setUserDeleteConfirmText] = useState('');
   const [newUser, setNewUser] = useState({
     username: '',
     password: '',
@@ -2870,16 +2873,33 @@ GET    /api/export/lineitems    # Line items CSV`}</pre>
                                   <Trash2 size={16} />
                                 </button>
                               )}
-                              {/* Reactivate button for inactive users */}
-                              {permissions.canManageUsers && !user.isActive && (
-                                <button
-                                  onClick={() => updateUser(user.id, { isActive: true })}
-                                  className="px-3 py-1.5 text-green-600 hover:text-white hover:bg-green-600 border border-green-600 rounded-lg transition-colors text-sm font-medium flex items-center gap-1"
-                                  title="Reactivate user"
-                                >
-                                  <CheckCircle size={14} />
-                                  Reactivate
-                                </button>
+                              {/* Reactivate and Permanently Delete buttons for inactive users */}
+                              {!user.isActive && (
+                                <>
+                                  {permissions.canManageUsers && (
+                                    <button
+                                      onClick={() => updateUser(user.id, { isActive: true })}
+                                      className="px-3 py-1.5 text-green-600 hover:text-white hover:bg-green-600 border border-green-600 rounded-lg transition-colors text-sm font-medium flex items-center gap-1"
+                                      title="Reactivate user"
+                                    >
+                                      <CheckCircle size={14} />
+                                      Reactivate
+                                    </button>
+                                  )}
+                                  {permissions.canDeleteUsers && user.id !== currentUser?.id && (
+                                    <button
+                                      onClick={() => {
+                                        setUserToDelete(user);
+                                        setShowUserDeleteConfirm(true);
+                                      }}
+                                      className="px-3 py-1.5 text-red-600 hover:text-white hover:bg-red-600 border border-red-600 rounded-lg transition-colors text-sm font-medium flex items-center gap-1"
+                                      title="Permanently delete user"
+                                    >
+                                      <Trash2 size={14} />
+                                      Delete
+                                    </button>
+                                  )}
+                                </>
                               )}
                               {user.id === currentUser?.id && (
                                 <span className="text-xs text-slate-400">(You)</span>
@@ -2916,7 +2936,7 @@ GET    /api/export/lineitems    # Line items CSV`}</pre>
         </div>
       </div>
 
-      {/* Delete Confirmation Modal */}
+      {/* Delete Confirmation Modal (Orders) */}
       {showDeleteConfirm && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-[100] p-4">
           <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
@@ -2965,6 +2985,83 @@ GET    /api/export/lineitems    # Line items CSV`}</pre>
                 <button
                   onClick={handleDeleteOrders}
                   disabled={deleteConfirmText !== 'DELETE'}
+                  className="flex-1 bg-red-600 disabled:opacity-50 disabled:cursor-not-allowed text-white py-3 rounded-xl font-bold hover:bg-red-700 transition-colors flex items-center justify-center gap-2"
+                >
+                  <Trash2 size={18} /> Delete Forever
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Permanent User Delete Confirmation Modal */}
+      {showUserDeleteConfirm && userToDelete && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-[100] p-4">
+          <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
+            <div className="p-6 border-b border-slate-100 bg-red-50">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center">
+                  <AlertTriangle className="text-red-600" size={24} />
+                </div>
+                <div>
+                  <h3 className="text-xl font-bold text-red-800">Permanently Delete User</h3>
+                  <p className="text-sm text-red-600">This action cannot be undone</p>
+                </div>
+              </div>
+            </div>
+
+            <div className="p-6 space-y-4">
+              <p className="text-slate-700">
+                You are about to permanently delete the user <strong className="text-red-600">{userToDelete.displayName}</strong> ({userToDelete.username}) from the system.
+                This will remove all user data and cannot be recovered.
+              </p>
+
+              <div className="bg-slate-50 border border-slate-200 rounded-xl p-4">
+                <div className="grid grid-cols-2 gap-2 text-sm">
+                  <div className="text-slate-500">Username:</div>
+                  <div className="font-medium">{userToDelete.username}</div>
+                  <div className="text-slate-500">Role:</div>
+                  <div className="font-medium">{userToDelete.role}</div>
+                  <div className="text-slate-500">Department:</div>
+                  <div className="font-medium">{userToDelete.department || '-'}</div>
+                </div>
+              </div>
+
+              <div className="bg-red-50 border border-red-200 rounded-xl p-4">
+                <p className="text-sm text-red-700 mb-2">
+                  To confirm, type <strong>DELETE</strong> in the box below:
+                </p>
+                <input
+                  type="text"
+                  className="w-full border-2 border-red-300 p-3 rounded-xl focus:ring-2 focus:ring-red-500 focus:border-red-500 outline-none font-mono text-center text-lg"
+                  placeholder="Type DELETE to confirm"
+                  value={userDeleteConfirmText}
+                  onChange={e => setUserDeleteConfirmText(e.target.value.toUpperCase())}
+                  autoFocus
+                />
+              </div>
+
+              <div className="flex gap-3 pt-2">
+                <button
+                  onClick={() => {
+                    setShowUserDeleteConfirm(false);
+                    setUserToDelete(null);
+                    setUserDeleteConfirmText('');
+                  }}
+                  className="flex-1 bg-slate-100 text-slate-700 py-3 rounded-xl font-bold hover:bg-slate-200 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => {
+                    if (userToDelete && permanentlyDeleteUser(userToDelete.id)) {
+                      setShowUserDeleteConfirm(false);
+                      setUserToDelete(null);
+                      setUserDeleteConfirmText('');
+                    }
+                  }}
+                  disabled={userDeleteConfirmText !== 'DELETE'}
                   className="flex-1 bg-red-600 disabled:opacity-50 disabled:cursor-not-allowed text-white py-3 rounded-xl font-bold hover:bg-red-700 transition-colors flex items-center justify-center gap-2"
                 >
                   <Trash2 size={18} /> Delete Forever

@@ -2,7 +2,7 @@ import React, { useState, useMemo } from 'react';
 import {
   BarChart3, TrendingUp, Package, DollarSign, Calendar, ChevronRight,
   Layers, Clock, AlertCircle, Zap, PieChart, ArrowUpRight, ArrowDownRight,
-  Target, Printer, Shirt, X
+  Target, Printer, Shirt, X, Users
 } from 'lucide-react';
 import { Order, OrderStatus, ProductionMethod } from '../types';
 import { ORDER_STAGES } from '../constants';
@@ -12,7 +12,7 @@ interface ReportsPageProps {
   onClose: () => void;
 }
 
-type ReportTab = 'queue' | 'performance';
+type ReportTab = 'queue' | 'performance' | 'customers';
 
 const ReportsPage: React.FC<ReportsPageProps> = ({ orders, onClose }) => {
   const [activeTab, setActiveTab] = useState<ReportTab>('queue');
@@ -143,6 +143,82 @@ const ReportsPage: React.FC<ReportsPageProps> = ({ orders, onClose }) => {
     };
   }, [ordersInRange]);
 
+  // Customer Analytics
+  const customerAnalytics = useMemo(() => {
+    interface CustomerData {
+      name: string;
+      quotedValue: number;
+      orderValue: number;
+      activeQuotes: number;
+      deadLeads: number;
+      totalOrders: number;
+      totalValue: number;
+    }
+
+    const customerMap = new Map<string, CustomerData>();
+
+    // Quote/Lead stages: Lead, Quote, Approval
+    const quoteStages: OrderStatus[] = ['Lead', 'Quote', 'Approval'];
+    // Order stages: Art Confirmation and beyond
+    const orderStages: OrderStatus[] = [
+      'Art Confirmation', 'Inventory Order', 'Production Prep',
+      'Inventory Received', 'Production', 'Fulfillment',
+      'Invoice', 'Closeout', 'Closed'
+    ];
+
+    ordersInRange.forEach(order => {
+      const customerName = order.customer || 'Unknown Customer';
+
+      if (!customerMap.has(customerName)) {
+        customerMap.set(customerName, {
+          name: customerName,
+          quotedValue: 0,
+          orderValue: 0,
+          activeQuotes: 0,
+          deadLeads: 0,
+          totalOrders: 0,
+          totalValue: 0
+        });
+      }
+
+      const customerData = customerMap.get(customerName)!;
+      const orderTotal = order.lineItems.reduce((sum, item) => sum + item.price * item.qty, 0);
+
+      customerData.totalOrders++;
+      customerData.totalValue += orderTotal;
+
+      // Count active quotes/leads (Lead, Quote, Approval stages)
+      if (quoteStages.includes(order.status)) {
+        customerData.quotedValue += orderTotal;
+        customerData.activeQuotes++;
+      }
+
+      // Count orders (Art Confirmation and beyond, excluding Closed with dead reason)
+      if (orderStages.includes(order.status) && order.status !== 'Closed') {
+        customerData.orderValue += orderTotal;
+      }
+
+      // Count dead leads (Closed orders)
+      if (order.status === 'Closed') {
+        customerData.deadLeads++;
+      }
+    });
+
+    // Convert to array and sort by total value descending
+    const customerArray = Array.from(customerMap.values()).sort((a, b) => b.totalValue - a.totalValue);
+
+    // Calculate totals
+    const totals = {
+      totalCustomers: customerArray.length,
+      totalQuotedValue: customerArray.reduce((sum, c) => sum + c.quotedValue, 0),
+      totalOrderValue: customerArray.reduce((sum, c) => sum + c.orderValue, 0),
+      totalActiveQuotes: customerArray.reduce((sum, c) => sum + c.activeQuotes, 0),
+      totalDeadLeads: customerArray.reduce((sum, c) => sum + c.deadLeads, 0)
+    };
+
+    return { customers: customerArray, totals };
+  }, [ordersInRange]);
+
   const getStageColor = (stage: OrderStatus) => {
     const colors: Record<OrderStatus, string> = {
       'Lead': 'bg-emerald-500',
@@ -222,6 +298,19 @@ const ReportsPage: React.FC<ReportsPageProps> = ({ orders, onClose }) => {
             <div className="flex items-center gap-2">
               <TrendingUp size={18} />
               Performance Analytics
+            </div>
+          </button>
+          <button
+            onClick={() => setActiveTab('customers')}
+            className={`px-6 py-4 text-sm font-bold border-b-2 transition-colors ${
+              activeTab === 'customers'
+                ? 'border-blue-600 text-blue-600'
+                : 'border-transparent text-slate-500 hover:text-slate-700'
+            }`}
+          >
+            <div className="flex items-center gap-2">
+              <Users size={18} />
+              Customer Analytics
             </div>
           </button>
         </div>
@@ -613,6 +702,185 @@ const ReportsPage: React.FC<ReportsPageProps> = ({ orders, onClose }) => {
                 </div>
                 <div className="text-sm text-slate-500">
                   {ordersInRange.length} orders • {performanceAnalytics.totalUnits.toLocaleString()} units • ${performanceAnalytics.totalRevenue.toLocaleString()} revenue
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* CUSTOMERS TAB */}
+          {activeTab === 'customers' && (
+            <div className="space-y-8">
+              {/* Date Range Picker */}
+              <div className="bg-white rounded-xl border border-slate-200 p-4 flex items-center gap-6">
+                <div className="flex items-center gap-2">
+                  <Calendar className="text-slate-400" size={20} />
+                  <span className="text-sm font-medium text-slate-600">Date Range:</span>
+                </div>
+                <div className="flex items-center gap-3">
+                  <input
+                    type="date"
+                    value={dateRange.start}
+                    onChange={e => setDateRange(prev => ({ ...prev, start: e.target.value }))}
+                    className="px-3 py-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                  />
+                  <span className="text-slate-400">to</span>
+                  <input
+                    type="date"
+                    value={dateRange.end}
+                    onChange={e => setDateRange(prev => ({ ...prev, end: e.target.value }))}
+                    className="px-3 py-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                  />
+                </div>
+                <div className="flex gap-2 ml-auto">
+                  {[
+                    { label: '7D', days: 7 },
+                    { label: '30D', days: 30 },
+                    { label: '90D', days: 90 },
+                    { label: 'YTD', days: Math.floor((Date.now() - new Date(new Date().getFullYear(), 0, 1).getTime()) / (24 * 60 * 60 * 1000)) }
+                  ].map(preset => (
+                    <button
+                      key={preset.label}
+                      onClick={() => setDateRange({
+                        start: new Date(Date.now() - preset.days * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+                        end: new Date().toISOString().split('T')[0]
+                      })}
+                      className="px-3 py-1.5 text-xs font-bold bg-slate-100 text-slate-600 rounded-lg hover:bg-slate-200 transition-colors"
+                    >
+                      {preset.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Summary Cards */}
+              <div className="grid grid-cols-4 gap-6">
+                <div className="bg-white rounded-xl p-6 border border-slate-200">
+                  <div className="flex items-center justify-between mb-3">
+                    <span className="text-sm font-medium text-slate-500">Total Customers</span>
+                    <div className="p-2 bg-blue-100 rounded-lg">
+                      <Users className="text-blue-600" size={18} />
+                    </div>
+                  </div>
+                  <p className="text-3xl font-black text-slate-900">{customerAnalytics.totals.totalCustomers}</p>
+                  <p className="text-xs text-slate-400 mt-1">{ordersInRange.length} orders</p>
+                </div>
+
+                <div className="bg-white rounded-xl p-6 border border-slate-200">
+                  <div className="flex items-center justify-between mb-3">
+                    <span className="text-sm font-medium text-slate-500">Total Quoted Value</span>
+                    <div className="p-2 bg-indigo-100 rounded-lg">
+                      <DollarSign className="text-indigo-600" size={18} />
+                    </div>
+                  </div>
+                  <p className="text-3xl font-black text-slate-900">${customerAnalytics.totals.totalQuotedValue.toLocaleString()}</p>
+                  <p className="text-xs text-indigo-600 mt-1">{customerAnalytics.totals.totalActiveQuotes} active quotes</p>
+                </div>
+
+                <div className="bg-white rounded-xl p-6 border border-slate-200">
+                  <div className="flex items-center justify-between mb-3">
+                    <span className="text-sm font-medium text-slate-500">Total Order Value</span>
+                    <div className="p-2 bg-green-100 rounded-lg">
+                      <DollarSign className="text-green-600" size={18} />
+                    </div>
+                  </div>
+                  <p className="text-3xl font-black text-slate-900">${customerAnalytics.totals.totalOrderValue.toLocaleString()}</p>
+                  <p className="text-xs text-green-600 mt-1">Active orders in production</p>
+                </div>
+
+                <div className="bg-white rounded-xl p-6 border border-slate-200">
+                  <div className="flex items-center justify-between mb-3">
+                    <span className="text-sm font-medium text-slate-500">Dead Leads</span>
+                    <div className="p-2 bg-slate-100 rounded-lg">
+                      <AlertCircle className="text-slate-600" size={18} />
+                    </div>
+                  </div>
+                  <p className="text-3xl font-black text-slate-900">{customerAnalytics.totals.totalDeadLeads}</p>
+                  <p className="text-xs text-slate-400 mt-1">Closed opportunities</p>
+                </div>
+              </div>
+
+              {/* Customer Data Table */}
+              <div className="bg-white rounded-xl border border-slate-200 p-6">
+                <h3 className="text-lg font-bold text-slate-900 mb-6 flex items-center gap-2">
+                  <Users size={20} />
+                  Customer Analytics by Account
+                </h3>
+
+                {customerAnalytics.customers.length > 0 ? (
+                  <div className="overflow-x-auto">
+                    <table className="w-full">
+                      <thead>
+                        <tr className="text-xs text-slate-500 uppercase border-b border-slate-100">
+                          <th className="text-left py-3 px-4">Customer</th>
+                          <th className="text-right py-3 px-4">Total Quoted Value</th>
+                          <th className="text-right py-3 px-4">Total Order Value</th>
+                          <th className="text-right py-3 px-4">Active Quotes/Leads</th>
+                          <th className="text-right py-3 px-4">Dead Leads</th>
+                          <th className="text-right py-3 px-4">Total Orders</th>
+                          <th className="text-right py-3 px-4">Total Value</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {customerAnalytics.customers.map((customer, index) => (
+                          <tr key={customer.name} className="border-b border-slate-50 hover:bg-slate-50">
+                            <td className="py-3 px-4">
+                              <div className="flex items-center gap-3">
+                                <div className={`flex items-center justify-center w-8 h-8 rounded-full text-xs font-bold ${
+                                  index === 0 ? 'bg-blue-100 text-blue-700' :
+                                  index === 1 ? 'bg-indigo-100 text-indigo-700' :
+                                  index === 2 ? 'bg-purple-100 text-purple-700' :
+                                  'bg-slate-100 text-slate-600'
+                                }`}>
+                                  {customer.name.charAt(0).toUpperCase()}
+                                </div>
+                                <div>
+                                  <p className="font-bold text-slate-900">{customer.name}</p>
+                                  <p className="text-xs text-slate-400">{customer.totalOrders} {customer.totalOrders === 1 ? 'order' : 'orders'}</p>
+                                </div>
+                              </div>
+                            </td>
+                            <td className="py-3 px-4 text-right">
+                              <p className="font-bold text-indigo-600">${customer.quotedValue.toLocaleString()}</p>
+                            </td>
+                            <td className="py-3 px-4 text-right">
+                              <p className="font-bold text-green-600">${customer.orderValue.toLocaleString()}</p>
+                            </td>
+                            <td className="py-3 px-4 text-right">
+                              <span className="inline-flex items-center justify-center min-w-[2rem] px-2 py-1 bg-blue-100 text-blue-700 text-sm font-bold rounded-full">
+                                {customer.activeQuotes}
+                              </span>
+                            </td>
+                            <td className="py-3 px-4 text-right">
+                              <span className="inline-flex items-center justify-center min-w-[2rem] px-2 py-1 bg-slate-100 text-slate-600 text-sm font-bold rounded-full">
+                                {customer.deadLeads}
+                              </span>
+                            </td>
+                            <td className="py-3 px-4 text-right">
+                              <p className="font-bold text-slate-700">{customer.totalOrders}</p>
+                            </td>
+                            <td className="py-3 px-4 text-right">
+                              <p className="font-black text-slate-900">${customer.totalValue.toLocaleString()}</p>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  <div className="text-center py-12 text-slate-400">
+                    <Users size={48} strokeWidth={1} className="mx-auto mb-4 opacity-50" />
+                    <p>No customer data available for this period</p>
+                  </div>
+                )}
+              </div>
+
+              {/* Summary Footer */}
+              <div className="bg-slate-100 rounded-xl p-6 flex items-center justify-between">
+                <div className="text-sm text-slate-600">
+                  Showing data from <span className="font-bold">{new Date(dateRange.start).toLocaleDateString()}</span> to <span className="font-bold">{new Date(dateRange.end).toLocaleDateString()}</span>
+                </div>
+                <div className="text-sm text-slate-500">
+                  {customerAnalytics.totals.totalCustomers} customers • {ordersInRange.length} orders • ${(customerAnalytics.totals.totalQuotedValue + customerAnalytics.totals.totalOrderValue).toLocaleString()} total value
                 </div>
               </div>
             </div>

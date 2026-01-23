@@ -54,6 +54,59 @@ const createEmptySkuConfig = (): SkuConfig => ({
   colorRows: [createEmptyColorRow()]
 });
 
+// Helper functions for new Change Order system
+const separateLineItems = (items: LineItem[] | undefined): { original: LineItem[]; changeOrders: LineItem[] } => {
+  if (!items || !Array.isArray(items)) {
+    return { original: [], changeOrders: [] };
+  }
+
+  try {
+    const original = items.filter(item => item && !item.isChangeOrder);
+    const changeOrders = items.filter(item => item && item.isChangeOrder);
+    return { original, changeOrders };
+  } catch (error) {
+    console.error('Error in separateLineItems:', error);
+    return { original: [], changeOrders: [] };
+  }
+};
+
+const calculateItemTotals = (items: LineItem[]): { qty: number; value: number; count: number } => {
+  if (!items || !Array.isArray(items) || items.length === 0) {
+    return { qty: 0, value: 0, count: 0 };
+  }
+
+  try {
+    return items.reduce((acc, item) => {
+      if (!item) return acc;
+
+      const qty = typeof item.qty === 'number' ? item.qty : 0;
+      const price = typeof item.price === 'number' ? item.price : 0;
+
+      return {
+        qty: acc.qty + qty,
+        value: acc.value + (price * qty),
+        count: acc.count + 1
+      };
+    }, { qty: 0, value: 0, count: 0 });
+  } catch (error) {
+    console.error('Error in calculateItemTotals:', error);
+    return { qty: 0, value: 0, count: 0 };
+  }
+};
+
+const formatChangeOrderDate = (date?: Date | string | null): string => {
+  if (!date) return '';
+
+  try {
+    const d = date instanceof Date ? date : new Date(date);
+    if (isNaN(d.getTime())) return '';
+    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  } catch (error) {
+    console.error('Error formatting date:', error);
+    return '';
+  }
+};
+
 // Art Info Panel Component - Shows art status, notes and artwork files on ALL stages
 interface ArtInfoPanelProps {
   order: Order;
@@ -1685,173 +1738,40 @@ interface Vendor {
 const OrderSlideOver: React.FC<OrderSlideOverProps> = ({ order, viewMode, onClose, onUpdate, onDeleteQuote, initialShowAddItem, onAddItemOpened, allOrders = [] }) => {
   const { permissions } = useAuth();
 
-  // Find parent order if this is a change order
-  const parentOrder = order.isChangeOrder && order.parentOrderId
-    ? allOrders.find(o => o.id === order.parentOrderId)
-    : null;
+  // Simplified line items structure for new change order system
+  const lineItemsData = useMemo(() => {
+    try {
+      const allItems = order?.lineItems || [];
+      const { original, changeOrders } = separateLineItems(allItems);
 
-  // Find child change orders if this is a parent order
-  const changeOrders = order.changeOrderIds
-    ? allOrders.filter(o => order.changeOrderIds?.includes(o.id))
-    : [];
-
-  // Build line items structure: baseline + change orders + totals + rollup
-  const buildLineItemsStructure = useMemo(() => {
-    interface RolledUpItem {
-      itemNumber: string;
-      name: string;
-      color: string;
-      size: string;
-      decorationType: ProductionMethod;
-      decorationPlacements: number;
-      price: number;
-      baselineQty: number;
-      baselineItem?: LineItem;
-      baselineOrder?: Order;
-      changeOrderQtys: Array<{ order: Order; qty: number; item: LineItem }>;
-      totalQty: number;
-      allOrdered: boolean;
-      allReceived: boolean;
-      allDecorated: boolean;
-      allPacked: boolean;
-    }
-
-    const structure: {
-      baseline: { order: Order; items: LineItem[] };
-      changeOrders: Array<{ order: Order; items: LineItem[] }>;
-      rollup: RolledUpItem[];
-      totals: {
-        totalQty: number;
-        totalValue: number;
-        totalItems: number;
-        totalOrdered: number;
-        totalReceived: number;
-        totalDecorated: number;
-        totalPacked: number;
+      const originalTotals = calculateItemTotals(original);
+      const changeOrderTotals = calculateItemTotals(changeOrders);
+      const netTotals = {
+        qty: originalTotals.qty + changeOrderTotals.qty,
+        value: originalTotals.value + changeOrderTotals.value,
+        count: originalTotals.count + changeOrderTotals.count
       };
-    } = {
-      baseline: { order: order, items: [] },
-      changeOrders: [],
-      rollup: [],
-      totals: {
-        totalQty: 0,
-        totalValue: 0,
-        totalItems: 0,
-        totalOrdered: 0,
-        totalReceived: 0,
-        totalDecorated: 0,
-        totalPacked: 0
-      }
-    };
 
-    // Determine baseline order (if this is a change order, use parent; otherwise use current order)
-    const baselineOrder = order.isChangeOrder && parentOrder ? parentOrder : order;
-
-    // Add baseline items
-    if (baselineOrder && baselineOrder.lineItems) {
-      structure.baseline = { order: baselineOrder, items: baselineOrder.lineItems };
-      baselineOrder.lineItems.forEach(item => {
-        structure.totals.totalQty += item.qty;
-        structure.totals.totalValue += item.price * item.qty;
-        structure.totals.totalItems += 1;
-        if (item.ordered) structure.totals.totalOrdered += 1;
-        if (item.received) structure.totals.totalReceived += 1;
-        if (item.decorated) structure.totals.totalDecorated += 1;
-        if (item.packed) structure.totals.totalPacked += 1;
-      });
+      return {
+        original,
+        changeOrders,
+        originalTotals,
+        changeOrderTotals,
+        netTotals,
+        hasChangeOrders: changeOrders.length > 0
+      };
+    } catch (error) {
+      console.error('Error building line items data:', error);
+      return {
+        original: [],
+        changeOrders: [],
+        originalTotals: { qty: 0, value: 0, count: 0 },
+        changeOrderTotals: { qty: 0, value: 0, count: 0 },
+        netTotals: { qty: 0, value: 0, count: 0 },
+        hasChangeOrders: false
+      };
     }
-
-    // Add change order items (only if viewing baseline/parent order)
-    if (!order.isChangeOrder && changeOrders.length > 0) {
-      changeOrders.forEach(co => {
-        if (co.lineItems && co.lineItems.length > 0) {
-          structure.changeOrders.push({ order: co, items: co.lineItems });
-          co.lineItems.forEach(item => {
-            structure.totals.totalQty += item.qty;
-            structure.totals.totalValue += item.price * item.qty;
-            structure.totals.totalItems += 1;
-            if (item.ordered) structure.totals.totalOrdered += 1;
-            if (item.received) structure.totals.totalReceived += 1;
-            if (item.decorated) structure.totals.totalDecorated += 1;
-            if (item.packed) structure.totals.totalPacked += 1;
-          });
-        }
-      });
-    }
-
-    // Build rollup: consolidate items by item#, color, size
-    const rollupMap = new Map<string, RolledUpItem>();
-
-    // Add baseline items to rollup
-    if (baselineOrder && baselineOrder.lineItems) {
-      baselineOrder.lineItems.forEach(item => {
-        const key = `${item.itemNumber}-${item.color}-${item.size}-${item.decorationType}`;
-        if (!rollupMap.has(key)) {
-          rollupMap.set(key, {
-            itemNumber: item.itemNumber,
-            name: item.name,
-            color: item.color,
-            size: item.size,
-            decorationType: item.decorationType,
-            decorationPlacements: item.decorationPlacements,
-            price: item.price,
-            baselineQty: item.qty,
-            baselineItem: item,
-            baselineOrder: baselineOrder,
-            changeOrderQtys: [],
-            totalQty: item.qty,
-            allOrdered: item.ordered || false,
-            allReceived: item.received || false,
-            allDecorated: item.decorated || false,
-            allPacked: item.packed || false
-          });
-        }
-      });
-    }
-
-    // Add change order items to rollup
-    if (!order.isChangeOrder && changeOrders.length > 0) {
-      changeOrders.forEach(co => {
-        if (co.lineItems) {
-          co.lineItems.forEach(item => {
-            const key = `${item.itemNumber}-${item.color}-${item.size}-${item.decorationType}`;
-            const existing = rollupMap.get(key);
-            if (existing) {
-              // Item exists in baseline, add change order qty
-              existing.changeOrderQtys.push({ order: co, qty: item.qty, item });
-              existing.totalQty += item.qty;
-              existing.allOrdered = existing.allOrdered && (item.ordered || false);
-              existing.allReceived = existing.allReceived && (item.received || false);
-              existing.allDecorated = existing.allDecorated && (item.decorated || false);
-              existing.allPacked = existing.allPacked && (item.packed || false);
-            } else {
-              // New item only in change order
-              rollupMap.set(key, {
-                itemNumber: item.itemNumber,
-                name: item.name,
-                color: item.color,
-                size: item.size,
-                decorationType: item.decorationType,
-                decorationPlacements: item.decorationPlacements,
-                price: item.price,
-                baselineQty: 0,
-                changeOrderQtys: [{ order: co, qty: item.qty, item }],
-                totalQty: item.qty,
-                allOrdered: item.ordered || false,
-                allReceived: item.received || false,
-                allDecorated: item.decorated || false,
-                allPacked: item.packed || false
-              });
-            }
-          });
-        }
-      });
-    }
-
-    structure.rollup = Array.from(rollupMap.values());
-
-    return structure;
-  }, [order, parentOrder, changeOrders]);
+  }, [order?.lineItems]);
 
   const [showAddItem, setShowAddItem] = useState(initialShowAddItem || false);
   const [skuConfig, setSkuConfig] = useState<SkuConfig>(createEmptySkuConfig());
@@ -1905,7 +1825,18 @@ const OrderSlideOver: React.FC<OrderSlideOverProps> = ({ order, viewMode, onClos
 
   // Calculate grand total
   const grandTotal = useMemo(() => {
-    return order.lineItems?.reduce((sum, item) => sum + (item.price * item.qty), 0) || 0;
+    try {
+      if (!order.lineItems || !Array.isArray(order.lineItems)) return 0;
+      return order.lineItems.reduce((sum, item) => {
+        if (!item) return sum;
+        const price = typeof item.price === 'number' ? item.price : 0;
+        const qty = typeof item.qty === 'number' ? item.qty : 0;
+        return sum + (price * qty);
+      }, 0);
+    } catch (error) {
+      console.error('Error calculating grand total:', error);
+      return 0;
+    }
   }, [order.lineItems]);
 
   // Check if size is plus size for surcharge
@@ -1959,11 +1890,12 @@ const OrderSlideOver: React.FC<OrderSlideOverProps> = ({ order, viewMode, onClos
   };
 
   const updateQuantity = (rowId: string, size: string, qty: number) => {
+    // Allow negative quantities for change orders
     setSkuConfig(prev => ({
       ...prev,
       colorRows: prev.colorRows.map(row =>
         row.id === rowId
-          ? { ...row, quantities: { ...row.quantities, [size]: Math.max(0, qty) } }
+          ? { ...row, quantities: { ...row.quantities, [size]: qty } }
           : row
       )
     }));
@@ -1978,7 +1910,7 @@ const OrderSlideOver: React.FC<OrderSlideOverProps> = ({ order, viewMode, onClos
 
       SIZE_OPTIONS.forEach(size => {
         const qty = colorRow.quantities[size];
-        if (qty > 0) {
+        if (qty !== 0 && qty !== undefined && qty !== null) { // Allow negative quantities for change orders
           const isPlusSize = checkPlusSize(size);
           const itemData = {
             decorationType: skuConfig.decorationType,
@@ -2019,7 +1951,21 @@ const OrderSlideOver: React.FC<OrderSlideOverProps> = ({ order, viewMode, onClos
     });
 
     if (newLineItems.length > 0) {
-      onUpdate({ ...order, lineItems: [...(order.lineItems || []), ...newLineItems] });
+      // Mark items as change orders if order has been moved back to Quote for changes
+      const isAddingChangeOrder = order.status === 'Quote' && order.hasChangeOrders;
+      const itemsToAdd = newLineItems.map(item => ({
+        ...item,
+        isChangeOrder: isAddingChangeOrder,
+        changeOrderDate: isAddingChangeOrder ? new Date() : undefined
+      }));
+
+      // Update order
+      onUpdate({
+        ...order,
+        lineItems: [...(order.lineItems || []), ...itemsToAdd],
+        hasChangeOrders: isAddingChangeOrder || order.hasChangeOrders,
+        lastChangeOrderDate: isAddingChangeOrder ? new Date() : order.lastChangeOrderDate
+      });
     }
     setShowAddItem(false);
   };
@@ -2031,7 +1977,7 @@ const OrderSlideOver: React.FC<OrderSlideOverProps> = ({ order, viewMode, onClos
     skuConfig.colorRows.forEach(colorRow => {
       SIZE_OPTIONS.forEach(size => {
         const qty = colorRow.quantities[size];
-        if (qty > 0) {
+        if (qty !== 0 && qty !== undefined && qty !== null) { // Allow negative quantities
           totalQty += qty;
           const isPlusSize = checkPlusSize(size);
           const itemData = {
@@ -2217,33 +2163,15 @@ const OrderSlideOver: React.FC<OrderSlideOverProps> = ({ order, viewMode, onClos
               )}
             </div>
 
-            {/* Parent/Child Order Relationships */}
-            {(parentOrder || changeOrders.length > 0) && (
+            {/* Change Order Status */}
+            {order.hasChangeOrders && (
               <div className="mt-3 pt-3 border-t border-slate-200">
-                {parentOrder && (
-                  <div className="mb-2">
-                    <p className="text-xs font-bold text-orange-600 uppercase mb-1">Change Order For:</p>
-                    <div className="bg-orange-50 border border-orange-200 rounded-lg px-3 py-2">
-                      <p className="text-sm font-bold text-orange-900">{parentOrder.orderNumber}</p>
-                      <p className="text-xs text-orange-700">{parentOrder.projectName}</p>
-                    </div>
-                  </div>
-                )}
-                {changeOrders.length > 0 && (
-                  <div>
-                    <p className="text-xs font-bold text-orange-600 uppercase mb-1">
-                      Change Orders ({changeOrders.length}):
-                    </p>
-                    <div className="space-y-1">
-                      {changeOrders.map(co => (
-                        <div key={co.id} className="bg-orange-50 border border-orange-200 rounded-lg px-3 py-2">
-                          <p className="text-sm font-bold text-orange-900">{co.orderNumber}</p>
-                          <p className="text-xs text-orange-700">{co.status} • {co.lineItems?.length || 0} items</p>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
+                <div className="bg-orange-50 border border-orange-200 rounded-lg px-3 py-2">
+                  <p className="text-xs font-bold text-orange-600 uppercase mb-1">Change Orders Included</p>
+                  <p className="text-xs text-orange-700">
+                    {lineItemsData.changeOrders.length} change order item{lineItemsData.changeOrders.length !== 1 ? 's' : ''} added {formatChangeOrderDate(order.lastChangeOrderDate)}
+                  </p>
+                </div>
               </div>
             )}
           </div>
@@ -2662,65 +2590,19 @@ const OrderSlideOver: React.FC<OrderSlideOverProps> = ({ order, viewMode, onClos
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
-                    {/* Baseline Order Items */}
-                    {buildLineItemsStructure.baseline.items.length > 0 && !order.isChangeOrder && buildLineItemsStructure.changeOrders.length > 0 && (
-                      <tr className="bg-blue-50">
-                        <td colSpan={9} className="px-3 py-2">
-                          <span className="text-xs font-bold text-blue-900 uppercase">
-                            Baseline Order ({buildLineItemsStructure.baseline.order.orderNumber})
-                          </span>
-                        </td>
-                      </tr>
-                    )}
-                    {buildLineItemsStructure.baseline.items.map(item => (
-                      <tr key={item.id} className="text-sm hover:bg-slate-50 transition-colors">
-                        <td className="px-3 py-3 font-mono text-xs text-slate-600">{item.itemNumber || '-'}</td>
-                        <td className="px-3 py-3 font-medium text-slate-900">{item.name}</td>
-                        <td className="px-3 py-3 text-slate-600">{item.color || '-'}</td>
-                        <td className="px-3 py-3">
-                          <span className={`inline-flex px-2 py-0.5 rounded text-xs font-bold ${
-                            checkPlusSize(item.size) ? 'bg-orange-100 text-orange-700' : 'bg-slate-100 text-slate-600'
-                          }`}>
-                            {item.size || '-'}
-                          </span>
-                        </td>
-                        <td className="px-3 py-3 text-center font-bold text-slate-900">{item.qty}</td>
-                        <td className="px-3 py-3">
-                          <div className="flex flex-col gap-0.5">
-                            <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-bold w-fit ${getDecorationBadgeClass(item.decorationType)}`}>
-                              {getDecorationLabel(item.decorationType)}
-                            </span>
-                            <span className="text-xs text-slate-400">{item.decorationPlacements} placement(s)</span>
-                          </div>
-                        </td>
-                        <td className="px-3 py-3 text-right text-slate-600">${item.price.toFixed(2)}</td>
-                        <td className="px-3 py-3 text-right font-bold text-slate-900">
-                          ${(item.price * item.qty).toFixed(2)}
-                        </td>
-                        <td className="px-3 py-3 text-right">
-                          {buildLineItemsStructure.baseline.order.id === order.id && (
-                            <button
-                              onClick={() => removeItem(item.id)}
-                              className="p-1 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded transition-all"
-                            >
-                              <Trash2 size={16} />
-                            </button>
-                          )}
-                        </td>
-                      </tr>
-                    ))}
-
-                    {/* Change Order Items */}
-                    {buildLineItemsStructure.changeOrders.map(({ order: co, items }) => (
-                      <React.Fragment key={co.id}>
-                        <tr className="bg-orange-50">
-                          <td colSpan={9} className="px-3 py-2">
-                            <span className="text-xs font-bold text-orange-900 uppercase">
-                              Change Order {co.orderNumber.split('-').pop()} ({co.orderNumber})
-                            </span>
-                          </td>
-                        </tr>
-                        {items.map(item => (
+                    {/* Original Order Items */}
+                    {lineItemsData.original.length > 0 && (
+                      <>
+                        {lineItemsData.hasChangeOrders && (
+                          <tr className="bg-blue-50">
+                            <td colSpan={9} className="px-3 py-2">
+                              <span className="text-xs font-bold text-blue-900 uppercase">
+                                Original Order Items
+                              </span>
+                            </td>
+                          </tr>
+                        )}
+                        {lineItemsData.original.map(item => (
                           <tr key={item.id} className="text-sm hover:bg-slate-50 transition-colors">
                             <td className="px-3 py-3 font-mono text-xs text-slate-600">{item.itemNumber || '-'}</td>
                             <td className="px-3 py-3 font-medium text-slate-900">{item.name}</td>
@@ -2745,25 +2627,82 @@ const OrderSlideOver: React.FC<OrderSlideOverProps> = ({ order, viewMode, onClos
                             <td className="px-3 py-3 text-right font-bold text-slate-900">
                               ${(item.price * item.qty).toFixed(2)}
                             </td>
-                            <td className="px-3 py-3 text-right"></td>
+                            <td className="px-3 py-3 text-right">
+                              <button
+                                onClick={() => removeItem(item.id)}
+                                className="p-1 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded transition-all"
+                              >
+                                <Trash2 size={16} />
+                              </button>
+                            </td>
                           </tr>
                         ))}
-                      </React.Fragment>
-                    ))}
-
-                    {/* Totals Row */}
-                    {(buildLineItemsStructure.baseline.items.length > 0 || buildLineItemsStructure.changeOrders.length > 0) && (
-                      <tr className="bg-slate-100 font-bold text-slate-900">
-                        <td colSpan={4} className="px-3 py-3 text-right">TOTAL:</td>
-                        <td className="px-3 py-3 text-center">{buildLineItemsStructure.totals.totalQty}</td>
-                        <td className="px-3 py-3 text-slate-600 text-xs">{buildLineItemsStructure.totals.totalItems} item{buildLineItemsStructure.totals.totalItems !== 1 ? 's' : ''}</td>
-                        <td className="px-3 py-3"></td>
-                        <td className="px-3 py-3 text-right text-blue-700 text-lg">
-                          ${buildLineItemsStructure.totals.totalValue.toFixed(2)}
-                        </td>
-                        <td className="px-3 py-3"></td>
-                      </tr>
+                      </>
                     )}
+
+                    {/* Change Order Items */}
+                    {lineItemsData.changeOrders.length > 0 && (
+                      <>
+                        <tr className="bg-orange-50 border-t-2 border-orange-200">
+                          <td colSpan={9} className="px-3 py-2">
+                            <div className="flex items-center justify-between">
+                              <span className="text-xs font-bold text-orange-900 uppercase flex items-center gap-2">
+                                <span className="inline-flex px-2 py-1 bg-orange-600 text-white rounded text-xs font-bold">
+                                  CHANGE ORDER
+                                </span>
+                                Items Added {formatChangeOrderDate(order.lastChangeOrderDate)}
+                              </span>
+                              <span className="text-xs text-orange-700">
+                                {lineItemsData.changeOrders.length} item{lineItemsData.changeOrders.length !== 1 ? 's' : ''}
+                              </span>
+                            </div>
+                          </td>
+                        </tr>
+                        {lineItemsData.changeOrders.map(item => (
+                          <tr key={item.id} className="text-sm bg-orange-50 hover:bg-orange-100 transition-colors">
+                            <td className="px-3 py-3 font-mono text-xs text-slate-600">{item.itemNumber || '-'}</td>
+                            <td className="px-3 py-3 font-medium text-slate-900">{item.name}</td>
+                            <td className="px-3 py-3 text-slate-600">{item.color || '-'}</td>
+                            <td className="px-3 py-3">
+                              <span className={`inline-flex px-2 py-0.5 rounded text-xs font-bold ${
+                                checkPlusSize(item.size) ? 'bg-orange-200 text-orange-800' : 'bg-orange-200 text-orange-700'
+                              }`}>
+                                {item.size || '-'}
+                              </span>
+                            </td>
+                            <td className={`px-3 py-3 text-center font-bold ${
+                              item.qty < 0 ? 'text-red-600' : 'text-slate-900'
+                            }`}>
+                              {item.qty > 0 ? '+' : ''}{item.qty}
+                            </td>
+                            <td className="px-3 py-3">
+                              <div className="flex flex-col gap-0.5">
+                                <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-bold w-fit ${getDecorationBadgeClass(item.decorationType)}`}>
+                                  {getDecorationLabel(item.decorationType)}
+                                </span>
+                                <span className="text-xs text-slate-400">{item.decorationPlacements} placement(s)</span>
+                              </div>
+                            </td>
+                            <td className="px-3 py-3 text-right text-slate-600">${item.price.toFixed(2)}</td>
+                            <td className={`px-3 py-3 text-right font-bold ${
+                              item.qty < 0 ? 'text-red-600' : 'text-slate-900'
+                            }`}>
+                              {item.qty > 0 ? '+' : ''}${(item.price * item.qty).toFixed(2)}
+                            </td>
+                            <td className="px-3 py-3 text-right">
+                              <button
+                                onClick={() => removeItem(item.id)}
+                                className="p-1 text-orange-300 hover:text-red-500 hover:bg-red-50 rounded transition-all"
+                              >
+                                <Trash2 size={16} />
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </>
+                    )}
+
+                    {/* Empty State */}
                     {(!order.lineItems || order.lineItems.length === 0) && (
                       <tr>
                         <td colSpan={9} className="px-4 py-8 text-center text-slate-400">
@@ -2775,13 +2714,50 @@ const OrderSlideOver: React.FC<OrderSlideOverProps> = ({ order, viewMode, onClos
                 </table>
               </div>
 
+              {/* Summary Section */}
               {(order.lineItems?.length || 0) > 0 && (
-                <div className="bg-slate-50 border-t border-slate-200 px-4 py-4 flex justify-between items-center">
-                  <div>
-                    <span className="text-sm font-bold text-slate-500 uppercase">Grand Total</span>
-                    <span className="text-xs text-slate-400 ml-2">({order.lineItems?.length} items)</span>
+                <div className="bg-slate-50 border-t border-slate-200">
+                  {/* Breakdown if has change orders */}
+                  {lineItemsData.hasChangeOrders && (
+                    <div className="px-4 py-3 space-y-2 border-b border-slate-200">
+                      <div className="flex justify-between text-sm">
+                        <span className="text-slate-600">Original Order:</span>
+                        <span className="font-bold text-slate-900">
+                          {lineItemsData.originalTotals.qty} items • ${lineItemsData.originalTotals.value.toFixed(2)}
+                        </span>
+                      </div>
+                      <div className="flex justify-between text-sm">
+                        <span className="text-orange-600">Change Order:</span>
+                        <span className={`font-bold ${
+                          lineItemsData.changeOrderTotals.value < 0 ? 'text-red-600' : 'text-orange-700'
+                        }`}>
+                          {lineItemsData.changeOrderTotals.qty > 0 ? '+' : ''}
+                          {lineItemsData.changeOrderTotals.qty} items •
+                          {lineItemsData.changeOrderTotals.value > 0 ? '+' : ''}
+                          ${lineItemsData.changeOrderTotals.value.toFixed(2)}
+                        </span>
+                      </div>
+                      <div className="flex justify-between text-sm pt-2 border-t border-slate-200">
+                        <span className="font-bold text-slate-700">Net Total:</span>
+                        <span className="font-bold text-blue-700">
+                          {lineItemsData.netTotals.qty} items • ${lineItemsData.netTotals.value.toFixed(2)}
+                        </span>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Grand Total */}
+                  <div className="px-4 py-4 flex justify-between items-center">
+                    <div>
+                      <span className="text-sm font-bold text-slate-500 uppercase">Grand Total</span>
+                      <span className="text-xs text-slate-400 ml-2">
+                        ({lineItemsData.netTotals.count} line item{lineItemsData.netTotals.count !== 1 ? 's' : ''})
+                      </span>
+                    </div>
+                    <span className="text-2xl font-black text-slate-900">
+                      ${lineItemsData.netTotals.value.toFixed(2)}
+                    </span>
                   </div>
-                  <span className="text-2xl font-black text-slate-900">${grandTotal.toFixed(2)}</span>
                 </div>
               )}
             </div>
@@ -2928,15 +2904,15 @@ const OrderSlideOver: React.FC<OrderSlideOverProps> = ({ order, viewMode, onClos
             <ArtInfoPanel order={order} />
 
             {/* Change Order Notice */}
-            {order.isChangeOrder && parentOrder && (
+            {lineItemsData.hasChangeOrders && (
               <div className="bg-orange-50 border-2 border-orange-200 rounded-xl p-4">
                 <div className="flex items-start gap-3">
                   <AlertCircle size={20} className="text-orange-600 flex-shrink-0 mt-0.5" />
                   <div>
-                    <p className="font-bold text-orange-900">Change Order - Separate Confirmation Required</p>
+                    <p className="font-bold text-orange-900">Change Order Items Included</p>
                     <p className="text-sm text-orange-700 mt-1">
-                      This is a change order for <span className="font-bold">{parentOrder.orderNumber}</span>.
-                      Inventory must be ordered and confirmed separately from the parent order.
+                      This order includes {lineItemsData.changeOrders.length} change order item{lineItemsData.changeOrders.length !== 1 ? 's' : ''}.
+                      All items must be ordered and confirmed before advancing.
                     </p>
                   </div>
                 </div>
@@ -3063,84 +3039,84 @@ const OrderSlideOver: React.FC<OrderSlideOverProps> = ({ order, viewMode, onClos
                   <tr>
                     <th className="px-3 py-3">Item # / Description</th>
                     <th className="px-3 py-3">Color / Size</th>
-                    <th className="px-3 py-3 text-center">Baseline Qty</th>
-                    {buildLineItemsStructure.changeOrders.length > 0 && buildLineItemsStructure.changeOrders.map(co => (
-                      <th key={co.order.id} className="px-3 py-3 text-center bg-orange-50">
-                        {co.order.orderNumber.split('-').pop()} Qty
-                      </th>
-                    ))}
-                    {buildLineItemsStructure.changeOrders.length > 0 && (
-                      <th className="px-3 py-3 text-center bg-blue-50">Total Qty</th>
-                    )}
+                    <th className="px-3 py-3 text-center">Qty</th>
                     <th className="px-3 py-3 text-center">Ordered</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {buildLineItemsStructure.rollup.map((rolledItem, idx) => (
-                    <tr key={`rollup-${idx}`} className="text-sm hover:bg-slate-50">
+                  {/* Original Items */}
+                  {lineItemsData.original.map(item => (
+                    <tr key={item.id} className="text-sm hover:bg-slate-50">
                       <td className="px-3 py-3">
-                        <p className="font-bold text-slate-900">{rolledItem.itemNumber}</p>
-                        <p className="text-xs text-slate-600">{rolledItem.name}</p>
+                        <p className="font-bold text-slate-900">{item.itemNumber}</p>
+                        <p className="text-xs text-slate-600">{item.name}</p>
                       </td>
                       <td className="px-3 py-3">
-                        <p className="text-slate-700">{rolledItem.color}</p>
-                        <p className="text-xs text-slate-500">{rolledItem.size}</p>
+                        <p className="text-slate-700">{item.color}</p>
+                        <p className="text-xs text-slate-500">{item.size}</p>
                       </td>
                       <td className="px-3 py-3 text-center">
-                        <span className="font-bold text-blue-700">{rolledItem.baselineQty}</span>
+                        <span className="font-bold text-slate-900">{item.qty}</span>
                       </td>
-                      {buildLineItemsStructure.changeOrders.length > 0 && buildLineItemsStructure.changeOrders.map(co => {
-                        const coQty = rolledItem.changeOrderQtys.find(coq => coq.order.id === co.order.id);
-                        return (
-                          <td key={co.order.id} className="px-3 py-3 text-center bg-orange-50">
-                            <span className="font-bold text-orange-700">{coQty ? coQty.qty : '-'}</span>
-                          </td>
-                        );
-                      })}
-                      {buildLineItemsStructure.changeOrders.length > 0 && (
-                        <td className="px-3 py-3 text-center bg-blue-50">
-                          <span className="font-bold text-blue-900">{rolledItem.totalQty}</span>
-                        </td>
-                      )}
                       <td className="px-3 py-3 text-center">
                         <button
-                          onClick={() => {
-                            // Mark all related items as ordered
-                            if (rolledItem.baselineItem && rolledItem.baselineOrder?.id === order.id) {
-                              toggleItemOrdered(rolledItem.baselineItem.id);
-                            }
-                            rolledItem.changeOrderQtys.forEach(coq => {
-                              if (coq.order.id === order.id) toggleItemOrdered(coq.item.id);
-                            });
-                          }}
+                          onClick={() => toggleItemOrdered(item.id)}
                           className={`w-6 h-6 rounded-full flex items-center justify-center border-2 transition-colors mx-auto ${
-                            rolledItem.allOrdered ? 'bg-green-500 border-green-500 text-white' : 'border-slate-300 hover:border-green-400'
+                            item.ordered ? 'bg-green-500 border-green-500 text-white' : 'border-slate-300 hover:border-green-400'
                           }`}
                         >
-                          {rolledItem.allOrdered && <Check size={14} strokeWidth={4} />}
+                          {item.ordered && <Check size={14} strokeWidth={4} />}
                         </button>
                       </td>
                     </tr>
                   ))}
 
+                  {/* Change Order Items */}
+                  {lineItemsData.changeOrders.length > 0 && (
+                    <>
+                      <tr className="bg-orange-50">
+                        <td colSpan={4} className="px-3 py-2">
+                          <span className="text-xs font-bold text-orange-900 uppercase">Change Order Items</span>
+                        </td>
+                      </tr>
+                      {lineItemsData.changeOrders.map(item => (
+                        <tr key={item.id} className="text-sm bg-orange-50 hover:bg-orange-100">
+                          <td className="px-3 py-3">
+                            <p className="font-bold text-slate-900">{item.itemNumber}</p>
+                            <p className="text-xs text-slate-600">{item.name}</p>
+                          </td>
+                          <td className="px-3 py-3">
+                            <p className="text-slate-700">{item.color}</p>
+                            <p className="text-xs text-slate-500">{item.size}</p>
+                          </td>
+                          <td className="px-3 py-3 text-center">
+                            <span className={`font-bold ${item.qty < 0 ? 'text-red-600' : 'text-slate-900'}`}>
+                              {item.qty > 0 ? '+' : ''}{item.qty}
+                            </span>
+                          </td>
+                          <td className="px-3 py-3 text-center">
+                            <button
+                              onClick={() => toggleItemOrdered(item.id)}
+                              className={`w-6 h-6 rounded-full flex items-center justify-center border-2 transition-colors mx-auto ${
+                                item.ordered ? 'bg-green-500 border-green-500 text-white' : 'border-slate-300 hover:border-green-400'
+                              }`}
+                            >
+                              {item.ordered && <Check size={14} strokeWidth={4} />}
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </>
+                  )}
+
                   {/* Totals Row */}
                   <tr className="bg-slate-100 font-bold text-slate-900">
                     <td colSpan={2} className="px-3 py-3 text-right">TOTAL:</td>
                     <td className="px-3 py-3 text-center text-blue-700">
-                      {buildLineItemsStructure.baseline.items.reduce((sum, i) => sum + i.qty, 0)}
+                      {lineItemsData.netTotals.qty}
                     </td>
-                    {buildLineItemsStructure.changeOrders.length > 0 && buildLineItemsStructure.changeOrders.map(co => (
-                      <td key={co.order.id} className="px-3 py-3 text-center bg-orange-50 text-orange-700">
-                        {co.items.reduce((sum, i) => sum + i.qty, 0)}
-                      </td>
-                    ))}
-                    {buildLineItemsStructure.changeOrders.length > 0 && (
-                      <td className="px-3 py-3 text-center bg-blue-50 text-blue-900 text-lg">
-                        {buildLineItemsStructure.totals.totalQty}
-                      </td>
-                    )}
                     <td className="px-3 py-3 text-center text-green-700">
-                      {buildLineItemsStructure.totals.totalOrdered}
+                      {order.lineItems?.filter(i => i.ordered).length || 0}
                     </td>
                   </tr>
                 </tbody>
@@ -3297,15 +3273,15 @@ const OrderSlideOver: React.FC<OrderSlideOverProps> = ({ order, viewMode, onClos
             <ArtInfoPanel order={order} />
 
             {/* Change Order Notice */}
-            {order.isChangeOrder && parentOrder && (
+            {lineItemsData.hasChangeOrders && (
               <div className="bg-orange-50 border-2 border-orange-200 rounded-xl p-4">
                 <div className="flex items-start gap-3">
                   <AlertCircle size={20} className="text-orange-600 flex-shrink-0 mt-0.5" />
                   <div>
-                    <p className="font-bold text-orange-900">Change Order - Separate Receipt Required</p>
+                    <p className="font-bold text-orange-900">Change Order Items Included</p>
                     <p className="text-sm text-orange-700 mt-1">
-                      This is a change order for <span className="font-bold">{parentOrder.orderNumber}</span>.
-                      Inventory must be received and confirmed separately from the parent order.
+                      This order includes {lineItemsData.changeOrders.length} change order item{lineItemsData.changeOrders.length !== 1 ? 's' : ''}.
+                      All items must be received and confirmed before advancing.
                     </p>
                   </div>
                 </div>
@@ -3328,84 +3304,84 @@ const OrderSlideOver: React.FC<OrderSlideOverProps> = ({ order, viewMode, onClos
                   <tr>
                     <th className="px-3 py-3">Item # / Description</th>
                     <th className="px-3 py-3">Color / Size</th>
-                    <th className="px-3 py-3 text-center">Baseline Qty</th>
-                    {buildLineItemsStructure.changeOrders.length > 0 && buildLineItemsStructure.changeOrders.map(co => (
-                      <th key={co.order.id} className="px-3 py-3 text-center bg-orange-50">
-                        {co.order.orderNumber.split('-').pop()} Qty
-                      </th>
-                    ))}
-                    {buildLineItemsStructure.changeOrders.length > 0 && (
-                      <th className="px-3 py-3 text-center bg-blue-50">Total Qty</th>
-                    )}
+                    <th className="px-3 py-3 text-center">Qty</th>
                     <th className="px-3 py-3 text-center">Received</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {buildLineItemsStructure.rollup.map((rolledItem, idx) => (
-                    <tr key={`rollup-${idx}`} className="text-sm hover:bg-slate-50">
+                  {/* Original Items */}
+                  {lineItemsData.original.map(item => (
+                    <tr key={item.id} className="text-sm hover:bg-slate-50">
                       <td className="px-3 py-3">
-                        <p className="font-bold text-slate-900">{rolledItem.itemNumber}</p>
-                        <p className="text-xs text-slate-600">{rolledItem.name}</p>
+                        <p className="font-bold text-slate-900">{item.itemNumber}</p>
+                        <p className="text-xs text-slate-600">{item.name}</p>
                       </td>
                       <td className="px-3 py-3">
-                        <p className="text-slate-700">{rolledItem.color}</p>
-                        <p className="text-xs text-slate-500">{rolledItem.size}</p>
+                        <p className="text-slate-700">{item.color}</p>
+                        <p className="text-xs text-slate-500">{item.size}</p>
                       </td>
                       <td className="px-3 py-3 text-center">
-                        <span className="font-bold text-blue-700">{rolledItem.baselineQty}</span>
+                        <span className="font-bold text-slate-900">{item.qty}</span>
                       </td>
-                      {buildLineItemsStructure.changeOrders.length > 0 && buildLineItemsStructure.changeOrders.map(co => {
-                        const coQty = rolledItem.changeOrderQtys.find(coq => coq.order.id === co.order.id);
-                        return (
-                          <td key={co.order.id} className="px-3 py-3 text-center bg-orange-50">
-                            <span className="font-bold text-orange-700">{coQty ? coQty.qty : '-'}</span>
-                          </td>
-                        );
-                      })}
-                      {buildLineItemsStructure.changeOrders.length > 0 && (
-                        <td className="px-3 py-3 text-center bg-blue-50">
-                          <span className="font-bold text-blue-900">{rolledItem.totalQty}</span>
-                        </td>
-                      )}
                       <td className="px-3 py-3 text-center">
                         <button
-                          onClick={() => {
-                            // Mark all related items as received
-                            if (rolledItem.baselineItem && rolledItem.baselineOrder?.id === order.id) {
-                              toggleItemReceived(rolledItem.baselineItem.id);
-                            }
-                            rolledItem.changeOrderQtys.forEach(coq => {
-                              if (coq.order.id === order.id) toggleItemReceived(coq.item.id);
-                            });
-                          }}
+                          onClick={() => toggleItemReceived(item.id)}
                           className={`w-6 h-6 rounded-full flex items-center justify-center border-2 transition-colors mx-auto ${
-                            rolledItem.allReceived ? 'bg-green-500 border-green-500 text-white' : 'border-slate-300 hover:border-green-400'
+                            item.received ? 'bg-green-500 border-green-500 text-white' : 'border-slate-300 hover:border-green-400'
                           }`}
                         >
-                          {rolledItem.allReceived && <Check size={14} strokeWidth={4} />}
+                          {item.received && <Check size={14} strokeWidth={4} />}
                         </button>
                       </td>
                     </tr>
                   ))}
 
+                  {/* Change Order Items */}
+                  {lineItemsData.changeOrders.length > 0 && (
+                    <>
+                      <tr className="bg-orange-50">
+                        <td colSpan={4} className="px-3 py-2">
+                          <span className="text-xs font-bold text-orange-900 uppercase">Change Order Items</span>
+                        </td>
+                      </tr>
+                      {lineItemsData.changeOrders.map(item => (
+                        <tr key={item.id} className="text-sm bg-orange-50 hover:bg-orange-100">
+                          <td className="px-3 py-3">
+                            <p className="font-bold text-slate-900">{item.itemNumber}</p>
+                            <p className="text-xs text-slate-600">{item.name}</p>
+                          </td>
+                          <td className="px-3 py-3">
+                            <p className="text-slate-700">{item.color}</p>
+                            <p className="text-xs text-slate-500">{item.size}</p>
+                          </td>
+                          <td className="px-3 py-3 text-center">
+                            <span className={`font-bold ${item.qty < 0 ? 'text-red-600' : 'text-slate-900'}`}>
+                              {item.qty > 0 ? '+' : ''}{item.qty}
+                            </span>
+                          </td>
+                          <td className="px-3 py-3 text-center">
+                            <button
+                              onClick={() => toggleItemReceived(item.id)}
+                              className={`w-6 h-6 rounded-full flex items-center justify-center border-2 transition-colors mx-auto ${
+                                item.received ? 'bg-green-500 border-green-500 text-white' : 'border-slate-300 hover:border-green-400'
+                              }`}
+                            >
+                              {item.received && <Check size={14} strokeWidth={4} />}
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </>
+                  )}
+
                   {/* Totals Row */}
                   <tr className="bg-slate-100 font-bold text-slate-900">
                     <td colSpan={2} className="px-3 py-3 text-right">TOTAL:</td>
                     <td className="px-3 py-3 text-center text-blue-700">
-                      {buildLineItemsStructure.baseline.items.reduce((sum, i) => sum + i.qty, 0)}
+                      {lineItemsData.netTotals.qty}
                     </td>
-                    {buildLineItemsStructure.changeOrders.length > 0 && buildLineItemsStructure.changeOrders.map(co => (
-                      <td key={co.order.id} className="px-3 py-3 text-center bg-orange-50 text-orange-700">
-                        {co.items.reduce((sum, i) => sum + i.qty, 0)}
-                      </td>
-                    ))}
-                    {buildLineItemsStructure.changeOrders.length > 0 && (
-                      <td className="px-3 py-3 text-center bg-blue-50 text-blue-900 text-lg">
-                        {buildLineItemsStructure.totals.totalQty}
-                      </td>
-                    )}
                     <td className="px-3 py-3 text-center text-green-700">
-                      {buildLineItemsStructure.totals.totalReceived}
+                      {order.lineItems?.filter(i => i.received).length || 0}
                     </td>
                   </tr>
                 </tbody>
@@ -3436,40 +3412,24 @@ const OrderSlideOver: React.FC<OrderSlideOverProps> = ({ order, viewMode, onClos
 
         {/* Stage 7: Production (Run Sheet) */}
         {order.status === 'Production' && (() => {
-          const isConsolidatedView = !order.isChangeOrder && buildLineItemsStructure.changeOrders.length > 0;
-          const isChangeOrderInProduction = order.isChangeOrder;
+          const hasChangeOrders = lineItemsData.hasChangeOrders;
+          const isChangeOrderInProduction = false; // No longer using separate change order entities
 
           return (
             <div className="space-y-6">
               {/* Approved Artwork Panel */}
               <ArtInfoPanel order={order} />
 
-              {/* Consolidation Notice */}
-              {isConsolidatedView && (
-                <div className="bg-blue-50 border-2 border-blue-200 rounded-xl p-4">
-                  <div className="flex items-start gap-3">
-                    <Layers size={20} className="text-blue-600 flex-shrink-0 mt-0.5" />
-                    <div>
-                      <p className="font-bold text-blue-900">Consolidated Production View</p>
-                      <p className="text-sm text-blue-700 mt-1">
-                        This run sheet includes items from the parent order and {changeOrders.filter(co => co.status === 'Production').length} change order(s).
-                        All items must be decorated and packed together.
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Change Order in Production Notice */}
-              {isChangeOrderInProduction && parentOrder && parentOrder.status === 'Production' && (
+              {/* Change Order Items Notice */}
+              {lineItemsData.hasChangeOrders && (
                 <div className="bg-orange-50 border-2 border-orange-200 rounded-xl p-4">
                   <div className="flex items-start gap-3">
                     <AlertCircle size={20} className="text-orange-600 flex-shrink-0 mt-0.5" />
                     <div>
-                      <p className="font-bold text-orange-900">Change Order - Consolidated Production</p>
+                      <p className="font-bold text-orange-900">Change Order Items Included</p>
                       <p className="text-sm text-orange-700 mt-1">
-                        This change order is consolidated with parent order <span className="font-bold">{parentOrder.orderNumber}</span> for production.
-                        View the parent order to see the complete run sheet.
+                        This order includes {lineItemsData.changeOrders.length} change order item{lineItemsData.changeOrders.length !== 1 ? 's' : ''} added {formatChangeOrderDate(order.lastChangeOrderDate)}.
+                        All items must be decorated and packed before advancing.
                       </p>
                     </div>
                   </div>
@@ -3479,7 +3439,7 @@ const OrderSlideOver: React.FC<OrderSlideOverProps> = ({ order, viewMode, onClos
               <div className="flex justify-between items-center">
                 <h3 className="text-lg font-bold flex items-center gap-2">
                   <ClipboardCheck size={20} className="text-slate-400" />
-                  Run Sheet {isConsolidatedView && '(Consolidated)'}
+                  Run Sheet {lineItemsData.hasChangeOrders && '(Includes Change Orders)'}
                 </h3>
                 <button onClick={markAllProductionComplete} className="text-blue-600 text-sm font-bold hover:underline">
                   Mark All Complete
@@ -3492,107 +3452,112 @@ const OrderSlideOver: React.FC<OrderSlideOverProps> = ({ order, viewMode, onClos
                     <tr>
                       <th className="px-4 py-3">Item # / Description</th>
                       <th className="px-4 py-3">Color / Size</th>
-                      <th className="px-4 py-3 text-center">Baseline</th>
-                      {isConsolidatedView && buildLineItemsStructure.changeOrders.map(co => (
-                        <th key={co.order.id} className="px-4 py-3 text-center bg-orange-50">
-                          {co.order.orderNumber.split('-').pop()}
-                        </th>
-                      ))}
-                      {isConsolidatedView && <th className="px-4 py-3 text-center bg-blue-50">Total</th>}
-                      {!isConsolidatedView && <th className="px-4 py-3 text-center">Qty</th>}
+                      <th className="px-4 py-3 text-center">Qty</th>
                       <th className="px-4 py-3 text-center">Decorated</th>
                       <th className="px-4 py-3 text-center">Packed</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
-                    {buildLineItemsStructure.rollup.map((rolledItem, idx) => {
-                      // For non-consolidated view, only show if it's from the current order
-                      if (!isConsolidatedView && rolledItem.baselineQty === 0) return null;
+                    {/* Original Items */}
+                    {lineItemsData.original.map(item => (
+                      <tr key={item.id} className="text-sm hover:bg-slate-50">
+                        <td className="px-4 py-3">
+                          <p className="font-bold text-slate-900">{item.itemNumber}</p>
+                          <p className="text-xs text-slate-600">{item.name}</p>
+                        </td>
+                        <td className="px-4 py-3">
+                          <p className="text-slate-700">{item.color}</p>
+                          <p className="text-xs text-slate-500">{item.size}</p>
+                        </td>
+                        <td className="px-4 py-3 text-center">
+                          <span className="font-bold text-slate-900">{item.qty}</span>
+                        </td>
+                        <td className="px-4 py-3 text-center">
+                          <button
+                            onClick={() => toggleItemDecorated(item.id)}
+                            className={`w-8 h-8 rounded-full flex items-center justify-center border-2 transition-colors mx-auto ${
+                              item.decorated ? 'bg-green-500 border-green-500 text-white' : 'border-slate-300 hover:border-green-400'
+                            }`}
+                          >
+                            {item.decorated && <Check size={16} strokeWidth={4} />}
+                          </button>
+                        </td>
+                        <td className="px-4 py-3 text-center">
+                          <button
+                            onClick={() => toggleItemPacked(item.id)}
+                            disabled={!item.decorated}
+                            className={`w-8 h-8 rounded-full flex items-center justify-center border-2 transition-colors mx-auto ${
+                              item.packed ? 'bg-green-500 border-green-500 text-white' :
+                              item.decorated ? 'border-slate-300 hover:border-green-400' : 'border-slate-200 cursor-not-allowed opacity-50'
+                            }`}
+                          >
+                            {item.packed && <Check size={16} strokeWidth={4} />}
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
 
-                      return (
-                        <tr key={`rollup-${idx}`} className="text-sm hover:bg-slate-50">
-                          <td className="px-4 py-3">
-                            <p className="font-bold text-slate-900">{rolledItem.itemNumber}</p>
-                            <p className="text-xs text-slate-600">{rolledItem.name}</p>
-                          </td>
-                          <td className="px-4 py-3">
-                            <p className="text-slate-700">{rolledItem.color}</p>
-                            <p className="text-xs text-slate-500">{rolledItem.size}</p>
-                          </td>
-                          <td className="px-4 py-3 text-center">
-                            <span className="font-bold text-blue-700">{rolledItem.baselineQty}</span>
-                          </td>
-                          {isConsolidatedView && buildLineItemsStructure.changeOrders.map(co => {
-                            const coQty = rolledItem.changeOrderQtys.find(coq => coq.order.id === co.order.id);
-                            return (
-                              <td key={co.order.id} className="px-4 py-3 text-center bg-orange-50">
-                                <span className="font-bold text-orange-700">{coQty ? coQty.qty : '-'}</span>
-                              </td>
-                            );
-                          })}
-                          {isConsolidatedView && (
-                            <td className="px-4 py-3 text-center bg-blue-50">
-                              <span className="font-bold text-blue-900 text-base">{rolledItem.totalQty}</span>
-                            </td>
-                          )}
-                          {!isConsolidatedView && (
-                            <td className="px-4 py-3 text-center">
-                              <span className="font-bold text-slate-900">{rolledItem.totalQty}</span>
-                            </td>
-                          )}
-                          <td className="px-4 py-3 text-center">
-                            <button
-                              onClick={() => {
-                                // Mark all related items as decorated
-                                if (rolledItem.baselineItem) toggleItemDecorated(rolledItem.baselineItem.id);
-                                rolledItem.changeOrderQtys.forEach(coq => toggleItemDecorated(coq.item.id));
-                              }}
-                              className={`w-8 h-8 rounded-full flex items-center justify-center border-2 transition-colors mx-auto ${
-                                rolledItem.allDecorated ? 'bg-green-500 border-green-500 text-white' : 'border-slate-300 hover:border-green-400'
-                              }`}
-                            >
-                              {rolledItem.allDecorated && <Check size={16} strokeWidth={4} />}
-                            </button>
-                          </td>
-                          <td className="px-4 py-3 text-center">
-                            <button
-                              onClick={() => {
-                                // Mark all related items as packed
-                                if (rolledItem.baselineItem) toggleItemPacked(rolledItem.baselineItem.id);
-                                rolledItem.changeOrderQtys.forEach(coq => toggleItemPacked(coq.item.id));
-                              }}
-                              disabled={!rolledItem.allDecorated}
-                              className={`w-8 h-8 rounded-full flex items-center justify-center border-2 transition-colors mx-auto ${
-                                rolledItem.allPacked ? 'bg-green-500 border-green-500 text-white' :
-                                rolledItem.allDecorated ? 'border-slate-300 hover:border-green-400' : 'border-slate-200 cursor-not-allowed opacity-50'
-                              }`}
-                            >
-                              {rolledItem.allPacked && <Check size={16} strokeWidth={4} />}
-                            </button>
+                    {/* Change Order Items */}
+                    {lineItemsData.changeOrders.length > 0 && (
+                      <>
+                        <tr className="bg-orange-50">
+                          <td colSpan={5} className="px-4 py-2">
+                            <span className="text-xs font-bold text-orange-900 uppercase">Change Order Items</span>
                           </td>
                         </tr>
-                      );
-                    })}
+                        {lineItemsData.changeOrders.map(item => (
+                          <tr key={item.id} className="text-sm bg-orange-50 hover:bg-orange-100">
+                            <td className="px-4 py-3">
+                              <p className="font-bold text-slate-900">{item.itemNumber}</p>
+                              <p className="text-xs text-slate-600">{item.name}</p>
+                            </td>
+                            <td className="px-4 py-3">
+                              <p className="text-slate-700">{item.color}</p>
+                              <p className="text-xs text-slate-500">{item.size}</p>
+                            </td>
+                            <td className="px-4 py-3 text-center">
+                              <span className={`font-bold ${item.qty < 0 ? 'text-red-600' : 'text-slate-900'}`}>
+                                {item.qty > 0 ? '+' : ''}{item.qty}
+                              </span>
+                            </td>
+                            <td className="px-4 py-3 text-center">
+                              <button
+                                onClick={() => toggleItemDecorated(item.id)}
+                                className={`w-8 h-8 rounded-full flex items-center justify-center border-2 transition-colors mx-auto ${
+                                  item.decorated ? 'bg-green-500 border-green-500 text-white' : 'border-slate-300 hover:border-green-400'
+                                }`}
+                              >
+                                {item.decorated && <Check size={16} strokeWidth={4} />}
+                              </button>
+                            </td>
+                            <td className="px-4 py-3 text-center">
+                              <button
+                                onClick={() => toggleItemPacked(item.id)}
+                                disabled={!item.decorated}
+                                className={`w-8 h-8 rounded-full flex items-center justify-center border-2 transition-colors mx-auto ${
+                                  item.packed ? 'bg-green-500 border-green-500 text-white' :
+                                  item.decorated ? 'border-slate-300 hover:border-green-400' : 'border-slate-200 cursor-not-allowed opacity-50'
+                                }`}
+                              >
+                                {item.packed && <Check size={16} strokeWidth={4} />}
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </>
+                    )}
 
                     {/* Totals Row */}
                     <tr className="bg-slate-100 font-bold text-slate-900">
                       <td colSpan={2} className="px-4 py-3 text-right">TOTAL:</td>
-                      <td className="px-4 py-3 text-center text-blue-700">
-                        {buildLineItemsStructure.baseline.items.reduce((sum, i) => sum + i.qty, 0)}
-                      </td>
-                      {isConsolidatedView && buildLineItemsStructure.changeOrders.map(co => (
-                        <td key={co.order.id} className="px-4 py-3 text-center bg-orange-50 text-orange-700">
-                          {co.items.reduce((sum, i) => sum + i.qty, 0)}
-                        </td>
-                      ))}
-                      <td className={`px-4 py-3 text-center ${isConsolidatedView ? 'bg-blue-50' : ''} text-blue-900 text-lg`}>
-                        {buildLineItemsStructure.totals.totalQty}
+                      <td className="px-4 py-3 text-center text-blue-900 text-lg">
+                        {lineItemsData.netTotals.qty}
                       </td>
                       <td className="px-4 py-3 text-center text-green-700">
-                        {buildLineItemsStructure.totals.totalDecorated}
+                        {order.lineItems?.filter(i => i.decorated).length || 0}
                       </td>
                       <td className="px-4 py-3 text-center text-green-700">
-                        {buildLineItemsStructure.totals.totalPacked}
+                        {order.lineItems?.filter(i => i.packed).length || 0}
                       </td>
                     </tr>
                   </tbody>
@@ -3600,8 +3565,8 @@ const OrderSlideOver: React.FC<OrderSlideOverProps> = ({ order, viewMode, onClos
               </div>
 
               <div className="text-sm text-slate-500 text-center">
-                {buildLineItemsStructure.totals.totalDecorated} of {buildLineItemsStructure.totals.totalItems} items decorated ({buildLineItemsStructure.totals.totalQty} total units) | {' '}
-                {buildLineItemsStructure.totals.totalPacked} of {buildLineItemsStructure.totals.totalItems} items packed
+                {order.lineItems?.filter(i => i.decorated).length || 0} of {lineItemsData.netTotals.count} items decorated ({lineItemsData.netTotals.qty} total units) | {' '}
+                {order.lineItems?.filter(i => i.packed).length || 0} of {lineItemsData.netTotals.count} items packed
               </div>
 
               <div className="flex gap-3">

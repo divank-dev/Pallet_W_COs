@@ -4078,12 +4078,6 @@ const OrderSlideOver: React.FC<OrderSlideOverProps> = ({ order, viewMode, onClos
                           <p className="text-lg font-bold text-slate-900">{order.poNumbers?.primary || order.orderNumber}</p>
                           <p className="text-xs font-bold text-slate-500 uppercase mt-2">Date</p>
                           <p className="text-sm text-slate-700">{new Date().toLocaleDateString()}</p>
-                          {order.dueDate && (
-                            <>
-                              <p className="text-xs font-bold text-slate-500 uppercase mt-2">Need By</p>
-                              <p className="text-sm text-slate-700">{new Date(order.dueDate).toLocaleDateString()}</p>
-                            </>
-                          )}
                         </div>
                       </div>
                     </div>

@@ -150,7 +150,7 @@ const ReportsPage: React.FC<ReportsPageProps> = ({ orders, onClose }) => {
       quotedValue: number;
       orderValue: number;
       activeQuotes: number;
-      deadLeads: number;
+      deadLeadsValue: number;
       totalOrders: number;
       totalValue: number;
     }
@@ -175,7 +175,7 @@ const ReportsPage: React.FC<ReportsPageProps> = ({ orders, onClose }) => {
           quotedValue: 0,
           orderValue: 0,
           activeQuotes: 0,
-          deadLeads: 0,
+          deadLeadsValue: 0,
           totalOrders: 0,
           totalValue: 0
         });
@@ -198,9 +198,9 @@ const ReportsPage: React.FC<ReportsPageProps> = ({ orders, onClose }) => {
         customerData.orderValue += orderTotal;
       }
 
-      // Count dead leads (Closed orders)
+      // Calculate dead leads value (Closed orders)
       if (order.status === 'Closed') {
-        customerData.deadLeads++;
+        customerData.deadLeadsValue += orderTotal;
       }
     });
 
@@ -213,7 +213,7 @@ const ReportsPage: React.FC<ReportsPageProps> = ({ orders, onClose }) => {
       totalQuotedValue: customerArray.reduce((sum, c) => sum + c.quotedValue, 0),
       totalOrderValue: customerArray.reduce((sum, c) => sum + c.orderValue, 0),
       totalActiveQuotes: customerArray.reduce((sum, c) => sum + c.activeQuotes, 0),
-      totalDeadLeads: customerArray.reduce((sum, c) => sum + c.deadLeads, 0)
+      totalDeadLeadsValue: customerArray.reduce((sum, c) => sum + c.deadLeadsValue, 0)
     };
 
     return { customers: customerArray, totals };
@@ -789,13 +789,13 @@ const ReportsPage: React.FC<ReportsPageProps> = ({ orders, onClose }) => {
 
                 <div className="bg-white rounded-xl p-6 border border-slate-200">
                   <div className="flex items-center justify-between mb-3">
-                    <span className="text-sm font-medium text-slate-500">Dead Leads</span>
-                    <div className="p-2 bg-slate-100 rounded-lg">
-                      <AlertCircle className="text-slate-600" size={18} />
+                    <span className="text-sm font-medium text-slate-500">Dead Leads Value</span>
+                    <div className="p-2 bg-red-100 rounded-lg">
+                      <AlertCircle className="text-red-600" size={18} />
                     </div>
                   </div>
-                  <p className="text-3xl font-black text-slate-900">{customerAnalytics.totals.totalDeadLeads}</p>
-                  <p className="text-xs text-slate-400 mt-1">Closed opportunities</p>
+                  <p className="text-3xl font-black text-slate-900">${customerAnalytics.totals.totalDeadLeadsValue.toLocaleString()}</p>
+                  <p className="text-xs text-red-600 mt-1">Closed opportunities</p>
                 </div>
               </div>
 
@@ -815,7 +815,7 @@ const ReportsPage: React.FC<ReportsPageProps> = ({ orders, onClose }) => {
                           <th className="text-right py-3 px-4">Total Quoted Value</th>
                           <th className="text-right py-3 px-4">Total Order Value</th>
                           <th className="text-right py-3 px-4">Active Quotes/Leads</th>
-                          <th className="text-right py-3 px-4">Dead Leads</th>
+                          <th className="text-right py-3 px-4">Dead Leads Value</th>
                           <th className="text-right py-3 px-4">Total Orders</th>
                           <th className="text-right py-3 px-4">Total Value</th>
                         </tr>
@@ -851,9 +851,7 @@ const ReportsPage: React.FC<ReportsPageProps> = ({ orders, onClose }) => {
                               </span>
                             </td>
                             <td className="py-3 px-4 text-right">
-                              <span className="inline-flex items-center justify-center min-w-[2rem] px-2 py-1 bg-slate-100 text-slate-600 text-sm font-bold rounded-full">
-                                {customer.deadLeads}
-                              </span>
+                              <p className="font-bold text-red-600">${customer.deadLeadsValue.toLocaleString()}</p>
                             </td>
                             <td className="py-3 px-4 text-right">
                               <p className="font-bold text-slate-700">{customer.totalOrders}</p>

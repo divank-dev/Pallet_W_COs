@@ -1,9 +1,10 @@
 
-import React, { useState, useMemo, useEffect } from 'react';
-import { Search, ChevronDown, Bell, X, LogOut } from 'lucide-react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
+import { Search, ChevronDown, Bell, X, LogOut, Loader2 } from 'lucide-react';
 import { Order, OrderStatus, ViewMode, StatusChangeLog, ProductionMethod } from './types';
 import { DUMMY_ORDERS, ORDER_STAGES, PRODUCTION_METHODS, PRODUCTION_METHOD_LABELS, PRODUCTION_METHOD_COLORS } from './constants';
 import { TEST_ORDERS } from './tests/testOrders';
+import { fetchOrders, createOrder as createOrderDb, updateOrder as updateOrderDb, deleteOrders as deleteOrdersDb, subscribeToOrders } from './src/lib/orderService';
 import Sidebar from './components/Sidebar';
 import WorkflowSidebar from './components/WorkflowSidebar';
 import OrderCard from './components/OrderCard';
@@ -22,7 +23,9 @@ import { AuthProvider, useAuth } from './contexts/AuthContext';
 // Main App Content (requires authentication)
 const AppContent: React.FC = () => {
   const { currentUser, logout } = useAuth();
-  const [orders, setOrders] = useState<Order[]>(TEST_ORDERS);
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [currentStage, setCurrentStage] = useState<OrderStatus>('Lead');
   const [viewMode, setViewMode] = useState<ViewMode>('Sales');
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
@@ -34,6 +37,48 @@ const AppContent: React.FC = () => {
   const [showTestRunner, setShowTestRunner] = useState(false);
   const [isDeadOpportunitiesActive, setIsDeadOpportunitiesActive] = useState(false);
   const [deadOpportunitySearch, setDeadOpportunitySearch] = useState('');
+  const [isSaving, setIsSaving] = useState(false);
+
+  // Fetch orders from Supabase on mount
+  useEffect(() => {
+    let unsubscribe: (() => void) | null = null;
+
+    const loadOrders = async () => {
+      try {
+        setIsLoading(true);
+        setLoadError(null);
+        const data = await fetchOrders();
+        setOrders(data);
+
+        // Subscribe to real-time updates
+        unsubscribe = subscribeToOrders((updatedOrders) => {
+          setOrders(updatedOrders);
+          // Update selected order if it changed
+          if (selectedOrder) {
+            const updated = updatedOrders.find(o => o.id === selectedOrder.id);
+            if (updated) {
+              setSelectedOrder(updated);
+            }
+          }
+        });
+      } catch (err) {
+        console.error('Failed to load orders:', err);
+        setLoadError('Failed to load orders from database. Using offline mode.');
+        // Fallback to test data if Supabase fails
+        setOrders(TEST_ORDERS);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    loadOrders();
+
+    return () => {
+      if (unsubscribe) {
+        unsubscribe();
+      }
+    };
+  }, []);
 
   // Keyboard shortcut for test runner (Ctrl+Shift+T)
   useEffect(() => {
@@ -165,7 +210,7 @@ const AppContent: React.FC = () => {
     return grouped;
   }, [filteredOrders, showDecorationColumns]);
 
-  const handleUpdateOrder = (updated: Order) => {
+  const handleUpdateOrder = useCallback(async (updated: Order) => {
     // Find the original order to compare
     const original = orders.find(o => o.id === updated.id);
 
@@ -181,11 +226,27 @@ const AppContent: React.FC = () => {
       );
     }
 
+    // Optimistic update
     setOrders(prev => prev.map(o => o.id === updated.id ? orderWithAudit : o));
     setSelectedOrder(orderWithAudit);
-  };
 
-  const handleCreateOrder = (newOrder: any) => {
+    // Persist to Supabase
+    try {
+      setIsSaving(true);
+      await updateOrderDb(updated.id, orderWithAudit);
+    } catch (err) {
+      console.error('Failed to save order:', err);
+      // Revert on error
+      if (original) {
+        setOrders(prev => prev.map(o => o.id === updated.id ? original : o));
+        setSelectedOrder(original);
+      }
+    } finally {
+      setIsSaving(false);
+    }
+  }, [orders, currentUser]);
+
+  const handleCreateOrder = useCallback(async (newOrder: any) => {
     // Add creation audit log
     const orderWithAudit = addAuditLog(
       newOrder as Order,
@@ -194,16 +255,33 @@ const AppContent: React.FC = () => {
       newOrder.status || 'Lead',
       `Created by ${currentUser?.displayName}`
     );
-    setOrders(prev => [orderWithAudit, ...prev]);
+
     setShowNewOrder(false);
     setCurrentStage(newOrder.status || 'Lead');
 
-    // If creating a quote, automatically open the order detail with Add Item form
-    if (newOrder.status === 'Quote') {
-      setSelectedOrder(orderWithAudit);
-      setAutoOpenAddItem(true);
+    // Create in Supabase
+    try {
+      setIsSaving(true);
+      const created = await createOrderDb(orderWithAudit);
+      setOrders(prev => [created, ...prev]);
+
+      // If creating a quote, automatically open the order detail with Add Item form
+      if (newOrder.status === 'Quote') {
+        setSelectedOrder(created);
+        setAutoOpenAddItem(true);
+      }
+    } catch (err) {
+      console.error('Failed to create order:', err);
+      // Fallback to local state
+      setOrders(prev => [orderWithAudit, ...prev]);
+      if (newOrder.status === 'Quote') {
+        setSelectedOrder(orderWithAudit);
+        setAutoOpenAddItem(true);
+      }
+    } finally {
+      setIsSaving(false);
     }
-  };
+  }, [currentUser]);
 
   const handleSelectOrderForChangeOrder = (order: Order) => {
     // Move the order back to Quote stage to add change order items
@@ -245,13 +323,25 @@ const AppContent: React.FC = () => {
   };
 
   // Handle deleting orders (Admin only)
-  const handleDeleteOrders = (orderIds: string[]) => {
+  const handleDeleteOrders = useCallback(async (orderIds: string[]) => {
+    // Optimistic delete
+    const previousOrders = orders;
     setOrders(prev => prev.filter(o => !orderIds.includes(o.id)));
+
     // Clear selection if deleted order was selected
     if (selectedOrder && orderIds.includes(selectedOrder.id)) {
       setSelectedOrder(null);
     }
-  };
+
+    // Delete from Supabase
+    try {
+      await deleteOrdersDb(orderIds);
+    } catch (err) {
+      console.error('Failed to delete orders:', err);
+      // Revert on error
+      setOrders(previousOrders);
+    }
+  }, [orders, selectedOrder]);
 
   // Handle moving a quote to Dead Opportunities (with option to also create a Lead)
   const handleDeleteQuote = (orderId: string, alsoCreateLead: boolean) => {
@@ -336,8 +426,33 @@ const AppContent: React.FC = () => {
     setSelectedOrder(null);
   };
 
+  // Show loading state
+  if (isLoading) {
+    return (
+      <div className="flex h-screen bg-slate-50 items-center justify-center">
+        <div className="text-center">
+          <Loader2 className="h-12 w-12 animate-spin text-indigo-600 mx-auto mb-4" />
+          <p className="text-slate-600 text-lg">Loading orders...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="flex h-screen bg-slate-50">
+      {/* Error banner */}
+      {loadError && (
+        <div className="fixed top-0 left-0 right-0 bg-amber-500 text-white px-4 py-2 text-center text-sm z-50">
+          {loadError}
+        </div>
+      )}
+      {/* Saving indicator */}
+      {isSaving && (
+        <div className="fixed top-4 right-4 bg-indigo-600 text-white px-4 py-2 rounded-lg shadow-lg flex items-center gap-2 z-50">
+          <Loader2 className="h-4 w-4 animate-spin" />
+          Saving...
+        </div>
+      )}
       <Sidebar
         activeView={activeView}
         onSettingsClick={() => setActiveView('settings')}

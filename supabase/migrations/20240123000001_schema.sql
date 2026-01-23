@@ -1,42 +1,7 @@
 -- ================================================
--- CLEAN START - Drop existing objects if they exist
+-- PALLET DATABASE SCHEMA FOR SUPABASE
+-- Custom Apparel Order Management System
 -- ================================================
-
--- Drop existing types (CASCADE will drop dependent objects)
-DROP TYPE IF EXISTS order_status CASCADE;
-DROP TYPE IF EXISTS production_method CASCADE;
-DROP TYPE IF EXISTS art_status CASCADE;
-DROP TYPE IF EXISTS lead_source CASCADE;
-DROP TYPE IF EXISTS lead_temperature CASCADE;
-DROP TYPE IF EXISTS fulfillment_method CASCADE;
-DROP TYPE IF EXISTS user_role CASCADE;
-DROP TYPE IF EXISTS payment_method CASCADE;
-DROP TYPE IF EXISTS art_file_type CASCADE;
-DROP TYPE IF EXISTS art_file_source CASCADE;
-DROP TYPE IF EXISTS proof_status CASCADE;
-
--- Drop existing tables (if they exist)
-DROP TABLE IF EXISTS art_files CASCADE;
-DROP TABLE IF EXISTS productivity_entries CASCADE;
-DROP TABLE IF EXISTS status_change_logs CASCADE;
-DROP TABLE IF EXISTS line_items CASCADE;
-DROP TABLE IF EXISTS orders CASCADE;
-DROP TABLE IF EXISTS products CASCADE;
-DROP TABLE IF EXISTS customers CASCADE;
-DROP TABLE IF EXISTS users CASCADE;
-
--- Drop existing views
-DROP VIEW IF EXISTS order_summary CASCADE;
-DROP VIEW IF EXISTS daily_productivity_summary CASCADE;
-
--- Drop existing functions
-DROP FUNCTION IF EXISTS get_user_role() CASCADE;
-DROP FUNCTION IF EXISTS generate_order_number(TEXT) CASCADE;
-DROP FUNCTION IF EXISTS update_updated_at() CASCADE;
-
--- Now run the schema creation
--- Enable UUID extension
-CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
 -- ================================================
 -- ENUMS
@@ -64,7 +29,7 @@ CREATE TYPE proof_status AS ENUM ('Draft', 'Sent', 'Approved', 'Revision Needed'
 -- ================================================
 
 CREATE TABLE users (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   auth_user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
   username TEXT UNIQUE NOT NULL,
   display_name TEXT NOT NULL,
@@ -79,7 +44,7 @@ CREATE TABLE users (
 );
 
 CREATE TABLE customers (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   name TEXT NOT NULL,
   email TEXT,
   phone TEXT,
@@ -94,7 +59,7 @@ CREATE TABLE customers (
 );
 
 CREATE TABLE products (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   item_number TEXT UNIQUE NOT NULL,
   name TEXT NOT NULL,
   description TEXT,
@@ -110,7 +75,7 @@ CREATE TABLE products (
 );
 
 CREATE TABLE orders (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   order_number TEXT UNIQUE NOT NULL,
   customer_id UUID REFERENCES customers(id),
   customer_name TEXT NOT NULL,
@@ -146,7 +111,7 @@ CREATE TABLE orders (
 );
 
 CREATE TABLE line_items (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   order_id UUID NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
   product_id UUID REFERENCES products(id),
   item_number TEXT NOT NULL,
@@ -176,7 +141,7 @@ CREATE TABLE line_items (
 );
 
 CREATE TABLE status_change_logs (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   order_id UUID NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
   timestamp TIMESTAMPTZ DEFAULT NOW(),
   user_id UUID REFERENCES users(id),
@@ -188,7 +153,7 @@ CREATE TABLE status_change_logs (
 );
 
 CREATE TABLE productivity_entries (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   date DATE NOT NULL,
   hour INTEGER NOT NULL CHECK (hour >= 0 AND hour <= 23),
   operator_name TEXT NOT NULL,
@@ -203,7 +168,7 @@ CREATE TABLE productivity_entries (
 );
 
 CREATE TABLE art_files (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   order_id UUID NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
   placement_id UUID,
   proof_id UUID,
@@ -220,6 +185,13 @@ CREATE TABLE art_files (
   parent_file_id UUID REFERENCES art_files(id),
   uploaded_at TIMESTAMPTZ DEFAULT NOW(),
   uploaded_by UUID REFERENCES users(id)
+);
+
+CREATE TABLE database_metadata (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  key TEXT UNIQUE NOT NULL,
+  value JSONB,
+  updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
 -- ================================================
@@ -289,6 +261,24 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+CREATE OR REPLACE FUNCTION search_orders(search_query TEXT)
+RETURNS SETOF orders AS $$
+BEGIN
+  RETURN QUERY
+  SELECT * FROM orders
+  WHERE search_vector @@ plainto_tsquery('english', search_query)
+  ORDER BY ts_rank(search_vector, plainto_tsquery('english', search_query)) DESC;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION refresh_analytics_views()
+RETURNS void AS $$
+BEGIN
+  -- Placeholder for refreshing materialized views if needed
+  RETURN;
+END;
+$$ LANGUAGE plpgsql;
+
 -- ================================================
 -- ROW LEVEL SECURITY
 -- ================================================
@@ -321,6 +311,30 @@ CREATE POLICY "Art Files: Read all" ON art_files FOR SELECT TO authenticated USI
 CREATE POLICY "Art Files: Non-ReadOnly modify" ON art_files FOR ALL TO authenticated USING (get_user_role() != 'ReadOnly');
 
 -- ================================================
+-- STORAGE BUCKET
+-- ================================================
+
+INSERT INTO storage.buckets (id, name, public)
+VALUES ('art-files', 'art-files', true)
+ON CONFLICT (id) DO NOTHING;
+
+CREATE POLICY "Art files: Authenticated users can upload"
+ON storage.objects FOR INSERT TO authenticated
+WITH CHECK (bucket_id = 'art-files');
+
+CREATE POLICY "Art files: Authenticated users can read"
+ON storage.objects FOR SELECT TO authenticated
+USING (bucket_id = 'art-files');
+
+CREATE POLICY "Art files: Non-ReadOnly users can update"
+ON storage.objects FOR UPDATE TO authenticated
+USING (bucket_id = 'art-files' AND get_user_role() != 'ReadOnly');
+
+CREATE POLICY "Art files: Non-ReadOnly users can delete"
+ON storage.objects FOR DELETE TO authenticated
+USING (bucket_id = 'art-files' AND get_user_role() != 'ReadOnly');
+
+-- ================================================
 -- VIEWS
 -- ================================================
 
@@ -340,4 +354,4 @@ FROM productivity_entries GROUP BY date ORDER BY date DESC;
 -- ================================================
 
 INSERT INTO users (username, display_name, email, role, is_active)
-VALUES ('admin', 'System Administrator', 'admin@geministudio.com', 'Admin', true);
+VALUES ('admin', 'System Administrator', 'admin@company.com', 'Admin', true);

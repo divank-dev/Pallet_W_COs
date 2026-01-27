@@ -8,12 +8,52 @@ if (!supabaseUrl || !supabaseAnonKey) {
   throw new Error('Missing Supabase environment variables. Please check your .env.local file.');
 }
 
+// Storage key for Supabase session persistence
+const STORAGE_KEY = 'pallet-auth-session';
+
+/**
+ * CRITICAL: Clear stale/expired session data BEFORE Supabase client initializes
+ * This prevents Supabase from hanging while trying to refresh very old tokens
+ * Must run synchronously before createClient() is called
+ */
+function clearStaleSessionBeforeInit(): void {
+  try {
+    const stored = localStorage.getItem(STORAGE_KEY);
+    if (!stored) return;
+
+    const parsed = JSON.parse(stored);
+    const expiresAt = parsed?.expires_at;
+
+    if (expiresAt) {
+      // expires_at is in seconds since epoch
+      const expiryTime = expiresAt * 1000;
+      const now = Date.now();
+      // If token expired more than 1 hour ago, clear it to prevent refresh hangs
+      if (now > expiryTime + (60 * 60 * 1000)) {
+        console.log('[Supabase] Clearing expired session data before init');
+        localStorage.removeItem(STORAGE_KEY);
+      }
+    }
+  } catch (e) {
+    // If data is corrupted/unparseable, clear it
+    console.log('[Supabase] Clearing corrupted session data before init');
+    try {
+      localStorage.removeItem(STORAGE_KEY);
+    } catch {
+      // Ignore if localStorage is unavailable
+    }
+  }
+}
+
+// Run cleanup BEFORE creating the Supabase client
+clearStaleSessionBeforeInit();
+
 export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey, {
   auth: {
     persistSession: true,
     autoRefreshToken: true,
     detectSessionInUrl: true,
-    storageKey: 'pallet-auth-session', // Unique key to prevent conflicts across environments
+    storageKey: STORAGE_KEY,
     flowType: 'pkce' // More secure auth flow
   }
 });

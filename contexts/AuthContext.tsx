@@ -56,7 +56,46 @@ const EMPTY_ORG: OrgHierarchy = {
   lastUpdatedAt: new Date()
 };
 
+// Storage key used by Supabase for session persistence
+const SUPABASE_STORAGE_KEY = 'pallet-auth-session';
+
+/**
+ * Check if a cached session token is expired or invalid
+ * This runs BEFORE Supabase tries to use the token, preventing hangs
+ */
+function clearStaleSessionData(): void {
+  try {
+    const stored = localStorage.getItem(SUPABASE_STORAGE_KEY);
+    if (!stored) return;
+
+    const parsed = JSON.parse(stored);
+    const expiresAt = parsed?.expires_at;
+
+    if (expiresAt) {
+      // expires_at is in seconds since epoch
+      const expiryTime = expiresAt * 1000;
+      const now = Date.now();
+      // If token expired more than 1 hour ago, clear it immediately
+      // This prevents Supabase from trying to refresh very stale tokens
+      if (now > expiryTime + (60 * 60 * 1000)) {
+        console.log('[AuthContext] Clearing expired session data from localStorage');
+        localStorage.removeItem(SUPABASE_STORAGE_KEY);
+      }
+    }
+  } catch (e) {
+    // If we can't parse the stored data, it's corrupted - clear it
+    console.log('[AuthContext] Clearing corrupted session data from localStorage');
+    localStorage.removeItem(SUPABASE_STORAGE_KEY);
+  }
+}
+
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
+  // Clear stale/corrupted session data BEFORE any Supabase operations
+  // This prevents Chrome from hanging on bad cached tokens
+  useState(() => {
+    clearStaleSessionData();
+  });
+
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [loginError, setLoginError] = useState<string | null>(null);

@@ -18,7 +18,9 @@ import FulfillmentTrackingPage from './components/FulfillmentTrackingPage';
 import ProductionFloorPage from './components/ProductionFloorPage';
 import TestRunner from './tests/TestRunner';
 import LoginPage from './components/LoginPage';
+import SetupWizard from './components/SetupWizard';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
+import { checkSetupStatus } from './src/lib/authService';
 
 // Main App Content (requires authentication)
 const AppContent: React.FC = () => {
@@ -849,7 +851,45 @@ const AppContent: React.FC = () => {
 
 // Component that checks auth and renders LoginPage or AppContent
 const AuthenticatedApp: React.FC = () => {
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, isLoading } = useAuth();
+  const [setupStatus, setSetupStatus] = useState<'checking' | 'needed' | 'complete'>('checking');
+
+  useEffect(() => {
+    const checkSetup = async () => {
+      if (isAuthenticated) {
+        setSetupStatus('complete');
+        return;
+      }
+
+      try {
+        const status = await checkSetupStatus();
+        setSetupStatus(status.needsSetup ? 'needed' : 'complete');
+      } catch (err) {
+        console.error('Setup check failed:', err);
+        setSetupStatus('complete'); // Proceed to login on error
+      }
+    };
+
+    if (!isLoading) {
+      checkSetup();
+    }
+  }, [isAuthenticated, isLoading]);
+
+  // Still checking
+  if (isLoading || setupStatus === 'checking') {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center">
+        <Loader2 size={32} className="animate-spin text-blue-500" />
+      </div>
+    );
+  }
+
+  // Need setup
+  if (setupStatus === 'needed') {
+    return <SetupWizard onComplete={() => setSetupStatus('complete')} />;
+  }
+
+  // Normal auth flow
   return isAuthenticated ? <AppContent /> : <LoginPage />;
 };
 

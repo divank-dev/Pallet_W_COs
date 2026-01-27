@@ -12,7 +12,9 @@ export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey, {
   auth: {
     persistSession: true,
     autoRefreshToken: true,
-    detectSessionInUrl: true
+    detectSessionInUrl: true,
+    storageKey: 'pallet-auth-session', // Unique key to prevent conflicts across environments
+    flowType: 'pkce' // More secure auth flow
   }
 });
 

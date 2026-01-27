@@ -49,7 +49,7 @@ const Sidebar: React.FC<SidebarProps> = ({ activeView, onSettingsClick, onOrders
           {currentUser?.displayName?.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2) || 'U'}
         </div>
         <button
-          onClick={logout}
+          onClick={() => logout()}
           title="Sign Out"
           className="p-3 rounded-xl text-slate-400 hover:text-red-400 hover:bg-red-900/30 transition-all"
         >

@@ -4,11 +4,13 @@ import {
   ChevronRight, Lock, Key, Users, Server, AlertTriangle,
   CheckCircle, Clock, Settings, HardDrive, FileDown, Layers,
   ArrowRight, GitBranch, Box, Upload, UserPlus, Trash2, Edit2,
-  LogOut, Building2, FileSpreadsheet, Truck, Printer
+  LogOut, Building2, FileSpreadsheet, Truck, Printer, Loader2
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { Order, SCHEMA_DEFINITION, User, UserRole } from '../types';
 import { useAuth } from '../contexts/AuthContext';
+import { supabase } from '../src/lib/supabase';
+import { findUsersWithMissingAuthLink, repairAllMissingAuthLinks, runAuthDiagnostics, checkSetupStatus } from '../src/lib/authService';
 
 interface SettingsPageProps {
   orders: Order[];
@@ -90,6 +92,8 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ orders, onClose, onDeleteOr
     department: '',
     reportsTo: ''
   });
+  const [isUserActionLoading, setIsUserActionLoading] = useState(false);
+  const [userActionError, setUserActionError] = useState<string | null>(null);
 
   // Password change state (for admin resetting any user)
   const [passwordChangeUser, setPasswordChangeUser] = useState<string>('');
@@ -104,6 +108,16 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ orders, onClose, onDeleteOr
   const [myConfirmPassword, setMyConfirmPassword] = useState('');
   const [myPasswordSuccess, setMyPasswordSuccess] = useState(false);
   const [myPasswordError, setMyPasswordError] = useState('');
+
+  // Auth repair state (Admin only - for fixing multi-terminal login issues)
+  const [authRepairLoading, setAuthRepairLoading] = useState(false);
+  const [authRepairResult, setAuthRepairResult] = useState<{
+    repaired: string[];
+    failed: string[];
+    errors: string[];
+  } | null>(null);
+  const [usersWithMissingAuth, setUsersWithMissingAuth] = useState<Array<{ id: string; username: string; email: string }>>([]);
+  const [authDiagnostics, setAuthDiagnostics] = useState<any>(null);
 
   // Company settings state (with localStorage persistence)
   const [companySettings, setCompanySettings] = useState<CompanySettings>(() => {
@@ -185,8 +199,8 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ orders, onClose, onDeleteOr
     saveVendors(updatedVendors);
   };
 
-  // Handle admin resetting any user's password
-  const handlePasswordChange = () => {
+  // Handle admin sending password reset email to a user
+  const handlePasswordChange = async () => {
     setPasswordChangeError('');
     setPasswordChangeSuccess(false);
 
@@ -194,52 +208,47 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ orders, onClose, onDeleteOr
       setPasswordChangeError('Please select a user');
       return;
     }
-    if (!newPassword) {
-      setPasswordChangeError('Please enter a new password');
-      return;
-    }
-    if (newPassword.length < 4) {
-      setPasswordChangeError('Password must be at least 4 characters');
-      return;
-    }
-    if (newPassword !== confirmPassword) {
-      setPasswordChangeError('Passwords do not match');
+
+    const user = orgHierarchy.users.find(u => u.id === passwordChangeUser);
+    if (!user || !user.email) {
+      setPasswordChangeError('User does not have an email address');
       return;
     }
 
-    updateUser(passwordChangeUser, { password: newPassword });
-    setPasswordChangeSuccess(true);
-    setNewPassword('');
-    setConfirmPassword('');
-    setPasswordChangeUser('');
+    setIsUserActionLoading(true);
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(user.email, {
+        redirectTo: `${window.location.origin}/reset-password`
+      });
 
-    // Clear success message after 3 seconds
-    setTimeout(() => setPasswordChangeSuccess(false), 3000);
+      if (error) {
+        setPasswordChangeError(error.message);
+        return;
+      }
+
+      setPasswordChangeSuccess(true);
+      setPasswordChangeUser('');
+
+      // Clear success message after 5 seconds
+      setTimeout(() => setPasswordChangeSuccess(false), 5000);
+    } catch (error) {
+      setPasswordChangeError('Failed to send password reset email');
+    } finally {
+      setIsUserActionLoading(false);
+    }
   };
 
   // Handle user changing their own password
-  const handleMyPasswordChange = () => {
+  const handleMyPasswordChange = async () => {
     setMyPasswordError('');
     setMyPasswordSuccess(false);
 
-    if (!currentPassword) {
-      setMyPasswordError('Please enter your current password');
-      return;
-    }
-    if (currentPassword !== currentUser?.password) {
-      setMyPasswordError('Current password is incorrect');
-      return;
-    }
     if (!myNewPassword) {
       setMyPasswordError('Please enter a new password');
       return;
     }
-    if (myNewPassword.length < 4) {
-      setMyPasswordError('Password must be at least 4 characters');
-      return;
-    }
-    if (myNewPassword === currentPassword) {
-      setMyPasswordError('New password must be different from current password');
+    if (myNewPassword.length < 8) {
+      setMyPasswordError('Password must be at least 8 characters');
       return;
     }
     if (myNewPassword !== myConfirmPassword) {
@@ -247,24 +256,65 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ orders, onClose, onDeleteOr
       return;
     }
 
-    updateUser(currentUser!.id, { password: myNewPassword });
-    setMyPasswordSuccess(true);
-    setCurrentPassword('');
-    setMyNewPassword('');
-    setMyConfirmPassword('');
+    setIsUserActionLoading(true);
+    try {
+      const { error } = await supabase.auth.updateUser({
+        password: myNewPassword
+      });
 
-    // Clear success message after 3 seconds
-    setTimeout(() => setMyPasswordSuccess(false), 3000);
+      if (error) {
+        setMyPasswordError(error.message);
+        return;
+      }
+
+      setMyPasswordSuccess(true);
+      setCurrentPassword('');
+      setMyNewPassword('');
+      setMyConfirmPassword('');
+
+      // Clear success message after 3 seconds
+      setTimeout(() => setMyPasswordSuccess(false), 3000);
+    } catch (error) {
+      setMyPasswordError('Failed to update password');
+    } finally {
+      setIsUserActionLoading(false);
+    }
   };
 
-  const handleAddUser = () => {
-    if (!newUser.username || !newUser.password || !newUser.displayName) return;
-    addUser({
-      ...newUser,
-      isActive: true
-    });
-    setNewUser({ username: '', password: '', displayName: '', email: '', role: 'Sales', department: '', reportsTo: '' });
-    setShowAddUser(false);
+  const handleAddUser = async () => {
+    setUserActionError(null);
+
+    if (!newUser.username || !newUser.password || !newUser.displayName || !newUser.email) {
+      setUserActionError('Username, password, display name, and email are required');
+      return;
+    }
+
+    if (newUser.password.length < 8) {
+      setUserActionError('Password must be at least 8 characters');
+      return;
+    }
+
+    setIsUserActionLoading(true);
+    try {
+      await addUser(
+        {
+          username: newUser.username,
+          displayName: newUser.displayName,
+          email: newUser.email,
+          role: newUser.role,
+          department: newUser.department || undefined,
+          reportsTo: newUser.reportsTo || undefined,
+          isActive: true
+        },
+        newUser.password
+      );
+      setNewUser({ username: '', password: '', displayName: '', email: '', role: 'Sales', department: '', reportsTo: '' });
+      setShowAddUser(false);
+    } catch (error) {
+      setUserActionError(error instanceof Error ? error.message : 'Failed to create user');
+    } finally {
+      setIsUserActionLoading(false);
+    }
   };
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -272,17 +322,24 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ orders, onClose, onDeleteOr
     if (!file) return;
 
     const reader = new FileReader();
-    reader.onload = (event) => {
+    reader.onload = async (event) => {
       const content = event.target?.result as string;
-      const results = importUsersFromCSV(content);
-      setImportResults(results);
+      setIsUserActionLoading(true);
+      try {
+        const results = await importUsersFromCSV(content);
+        setImportResults(results);
+      } catch (error) {
+        setUserActionError(error instanceof Error ? error.message : 'Failed to import users');
+      } finally {
+        setIsUserActionLoading(false);
+      }
     };
     reader.readAsText(file);
     e.target.value = '';
   };
 
   const downloadCSVTemplate = () => {
-    const template = 'username,password,displayName,email,role,department,reportsTo\njsmith,password123,John Smith,john@company.com,Sales,Sales Team,\nmjones,password456,Mary Jones,mary@company.com,Production,Production Floor,jsmith';
+    const template = 'username,password,displayName,email,role,department,reportsTo\njsmith,Password123!,John Smith,john@company.com,Sales,Sales Team,\nmjones,Password456!,Mary Jones,mary@company.com,Production,Production Floor,jsmith';
     const blob = new Blob([template], { type: 'text/csv' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -2490,7 +2547,7 @@ GET    /api/export/lineitems    # Line items CSV`}</pre>
                   </div>
                 </div>
                 <button
-                  onClick={logout}
+                  onClick={() => logout()}
                   className="flex items-center gap-2 px-4 py-2 bg-white border border-blue-200 rounded-lg text-blue-700 font-medium hover:bg-blue-100 transition-colors"
                 >
                   <LogOut size={16} />
@@ -2501,23 +2558,10 @@ GET    /api/export/lineitems    # Line items CSV`}</pre>
               {/* Change My Password - Available to all users */}
               <div>
                 <h3 className="text-xl font-bold text-slate-900 mb-2">Change My Password</h3>
-                <p className="text-slate-500 mb-4">Update your own password. You'll need to enter your current password to confirm.</p>
+                <p className="text-slate-500 mb-4">Update your password. Password must be at least 8 characters.</p>
 
                 <div className="bg-white border border-slate-200 rounded-xl p-6">
-                  <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                    <div>
-                      <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Current Password</label>
-                      <input
-                        type="password"
-                        value={currentPassword}
-                        onChange={(e) => {
-                          setCurrentPassword(e.target.value);
-                          setMyPasswordError('');
-                        }}
-                        className="w-full border border-slate-200 rounded-lg px-3 py-2"
-                        placeholder="Enter current password"
-                      />
-                    </div>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div>
                       <label className="block text-xs font-bold text-slate-500 uppercase mb-1">New Password</label>
                       <input
@@ -2528,7 +2572,7 @@ GET    /api/export/lineitems    # Line items CSV`}</pre>
                           setMyPasswordError('');
                         }}
                         className="w-full border border-slate-200 rounded-lg px-3 py-2"
-                        placeholder="Enter new password"
+                        placeholder="Enter new password (min 8 chars)"
                       />
                     </div>
                     <div>
@@ -2547,11 +2591,11 @@ GET    /api/export/lineitems    # Line items CSV`}</pre>
                     <div className="flex items-end">
                       <button
                         onClick={handleMyPasswordChange}
-                        disabled={!currentPassword || !myNewPassword || !myConfirmPassword}
+                        disabled={!myNewPassword || !myConfirmPassword || isUserActionLoading}
                         className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-slate-300 disabled:cursor-not-allowed text-white font-medium py-2 px-4 rounded-lg transition-colors flex items-center justify-center gap-2"
                       >
-                        <Lock size={16} />
-                        Update Password
+                        {isUserActionLoading ? <Loader2 size={16} className="animate-spin" /> : <Lock size={16} />}
+                        {isUserActionLoading ? 'Updating...' : 'Update Password'}
                       </button>
                     </div>
                   </div>
@@ -2575,12 +2619,12 @@ GET    /api/export/lineitems    # Line items CSV`}</pre>
               {/* Reset Any User's Password - Admin Only */}
               {permissions.canManageUsers && (
                 <div>
-                  <h3 className="text-xl font-bold text-slate-900 mb-2">Reset User Passwords</h3>
-                  <p className="text-slate-500 mb-4">As an administrator, you can reset passwords for any user including yourself without knowing their current password.</p>
+                  <h3 className="text-xl font-bold text-slate-900 mb-2">Send Password Reset Email</h3>
+                  <p className="text-slate-500 mb-4">Send a password reset link to a user's email address. They will receive an email with instructions to set a new password.</p>
 
                   <div className="bg-amber-50 border border-amber-200 rounded-xl p-6">
-                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                      <div>
+                    <div className="flex flex-col md:flex-row gap-4">
+                      <div className="flex-1">
                         <label className="block text-xs font-bold text-amber-700 uppercase mb-1">Select User</label>
                         <select
                           value={passwordChangeUser}
@@ -2593,48 +2637,22 @@ GET    /api/export/lineitems    # Line items CSV`}</pre>
                         >
                           <option value="">Choose a user...</option>
                           {orgHierarchy.users
-                            .filter(u => u.isActive)
+                            .filter(u => u.isActive && u.email)
                             .map(user => (
                               <option key={user.id} value={user.id}>
-                                {user.displayName} ({user.username}) {user.id === currentUser?.id ? '← You' : ''}
+                                {user.displayName} ({user.email}) {user.id === currentUser?.id ? '← You' : ''}
                               </option>
                             ))}
                         </select>
                       </div>
-                      <div>
-                        <label className="block text-xs font-bold text-amber-700 uppercase mb-1">New Password</label>
-                        <input
-                          type="password"
-                          value={newPassword}
-                          onChange={(e) => {
-                            setNewPassword(e.target.value);
-                            setPasswordChangeError('');
-                          }}
-                          className="w-full border border-amber-300 rounded-lg px-3 py-2"
-                          placeholder="Enter new password"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-xs font-bold text-amber-700 uppercase mb-1">Confirm Password</label>
-                        <input
-                          type="password"
-                          value={confirmPassword}
-                          onChange={(e) => {
-                            setConfirmPassword(e.target.value);
-                            setPasswordChangeError('');
-                          }}
-                          className="w-full border border-amber-300 rounded-lg px-3 py-2"
-                          placeholder="Confirm password"
-                        />
-                      </div>
                       <div className="flex items-end">
                         <button
                           onClick={handlePasswordChange}
-                          disabled={!passwordChangeUser || !newPassword || !confirmPassword}
-                          className="w-full bg-amber-600 hover:bg-amber-700 disabled:bg-slate-300 disabled:cursor-not-allowed text-white font-medium py-2 px-4 rounded-lg transition-colors flex items-center justify-center gap-2"
+                          disabled={!passwordChangeUser || isUserActionLoading}
+                          className="w-full md:w-auto bg-amber-600 hover:bg-amber-700 disabled:bg-slate-300 disabled:cursor-not-allowed text-white font-medium py-2 px-6 rounded-lg transition-colors flex items-center justify-center gap-2"
                         >
-                          <Key size={16} />
-                          Reset Password
+                          {isUserActionLoading ? <Loader2 size={16} className="animate-spin" /> : <Key size={16} />}
+                          {isUserActionLoading ? 'Sending...' : 'Send Reset Email'}
                         </button>
                       </div>
                     </div>
@@ -2649,7 +2667,156 @@ GET    /api/export/lineitems    # Line items CSV`}</pre>
                     {passwordChangeSuccess && (
                       <div className="mt-4 flex items-center gap-2 text-green-600 bg-green-50 border border-green-200 rounded-lg p-3">
                         <CheckCircle size={16} />
-                        <span className="text-sm font-medium">Password has been reset successfully!</span>
+                        <span className="text-sm font-medium">Password reset email has been sent! The user should check their inbox.</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Auth Link Repair - Admin Only */}
+              {permissions.canManageUsers && (
+                <div>
+                  <h3 className="text-xl font-bold text-slate-900 mb-2">Repair Authentication Links</h3>
+                  <p className="text-slate-500 mb-4">
+                    Fix user accounts that can't log in from multiple terminals. This repairs missing auth links in the database.
+                  </p>
+
+                  <div className="bg-purple-50 border border-purple-200 rounded-xl p-6 space-y-4">
+                    <div className="flex flex-wrap gap-3">
+                      <button
+                        onClick={async () => {
+                          setAuthRepairLoading(true);
+                          try {
+                            const missing = await findUsersWithMissingAuthLink();
+                            setUsersWithMissingAuth(missing);
+                            const diagnostics = await runAuthDiagnostics();
+                            setAuthDiagnostics(diagnostics);
+                          } catch (error) {
+                            console.error('Diagnostics failed:', error);
+                          } finally {
+                            setAuthRepairLoading(false);
+                          }
+                        }}
+                        disabled={authRepairLoading}
+                        className="bg-purple-600 hover:bg-purple-700 disabled:bg-slate-300 text-white font-medium py-2 px-4 rounded-lg transition-colors flex items-center gap-2"
+                      >
+                        {authRepairLoading ? <Loader2 size={16} className="animate-spin" /> : <Database size={16} />}
+                        Check Auth Status
+                      </button>
+
+                      <button
+                        onClick={async () => {
+                          if (!confirm('This will attempt to repair all users with missing auth links using the default password (Password123!). Continue?')) {
+                            return;
+                          }
+                          setAuthRepairLoading(true);
+                          setAuthRepairResult(null);
+                          try {
+                            const result = await repairAllMissingAuthLinks();
+                            setAuthRepairResult(result);
+                            // Refresh the list
+                            const missing = await findUsersWithMissingAuthLink();
+                            setUsersWithMissingAuth(missing);
+                          } catch (error) {
+                            console.error('Repair failed:', error);
+                            setAuthRepairResult({
+                              repaired: [],
+                              failed: [],
+                              errors: [error instanceof Error ? error.message : 'Unknown error']
+                            });
+                          } finally {
+                            setAuthRepairLoading(false);
+                          }
+                        }}
+                        disabled={authRepairLoading || usersWithMissingAuth.length === 0}
+                        className="bg-amber-600 hover:bg-amber-700 disabled:bg-slate-300 text-white font-medium py-2 px-4 rounded-lg transition-colors flex items-center gap-2"
+                      >
+                        {authRepairLoading ? <Loader2 size={16} className="animate-spin" /> : <Settings size={16} />}
+                        Repair All Missing Links
+                      </button>
+                    </div>
+
+                    {/* Diagnostics Results */}
+                    {authDiagnostics && (
+                      <div className="bg-white border border-purple-200 rounded-lg p-4 text-sm space-y-2">
+                        <h4 className="font-bold text-purple-800">Diagnostics Results:</h4>
+                        <div className="grid grid-cols-2 gap-2">
+                          <div className={authDiagnostics.supabaseConnected ? 'text-green-600' : 'text-red-600'}>
+                            {authDiagnostics.supabaseConnected ? '✓' : '✗'} Supabase Connected
+                          </div>
+                          <div className={authDiagnostics.usersTableAccessible ? 'text-green-600' : 'text-red-600'}>
+                            {authDiagnostics.usersTableAccessible ? '✓' : '✗'} Users Table Accessible
+                          </div>
+                          <div className={authDiagnostics.currentSession ? 'text-green-600' : 'text-red-600'}>
+                            {authDiagnostics.currentSession ? '✓' : '✗'} Current Session Active
+                          </div>
+                          <div className={authDiagnostics.linkedUserProfile ? 'text-green-600' : 'text-red-600'}>
+                            {authDiagnostics.linkedUserProfile ? '✓' : '✗'} Your Profile Linked
+                          </div>
+                        </div>
+                        {authDiagnostics.errors.length > 0 && (
+                          <div className="text-red-600 mt-2">
+                            <strong>Errors:</strong>
+                            <ul className="list-disc pl-5">
+                              {authDiagnostics.errors.map((err: string, i: number) => (
+                                <li key={i}>{err}</li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Users with missing auth */}
+                    {usersWithMissingAuth.length > 0 && (
+                      <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                        <h4 className="font-bold text-red-800 mb-2 flex items-center gap-2">
+                          <AlertTriangle size={16} />
+                          Users with Missing Auth Links ({usersWithMissingAuth.length})
+                        </h4>
+                        <p className="text-sm text-red-600 mb-2">
+                          These users cannot log in from any terminal until their auth links are repaired:
+                        </p>
+                        <ul className="text-sm text-red-700 space-y-1">
+                          {usersWithMissingAuth.map(user => (
+                            <li key={user.id}>• {user.username} ({user.email || 'no email'})</li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+
+                    {usersWithMissingAuth.length === 0 && authDiagnostics && (
+                      <div className="bg-green-50 border border-green-200 rounded-lg p-4 flex items-center gap-2 text-green-700">
+                        <CheckCircle size={16} />
+                        All users have auth links properly configured.
+                      </div>
+                    )}
+
+                    {/* Repair Results */}
+                    {authRepairResult && (
+                      <div className="bg-white border border-purple-200 rounded-lg p-4 text-sm space-y-2">
+                        <h4 className="font-bold text-purple-800">Repair Results:</h4>
+                        {authRepairResult.repaired.length > 0 && (
+                          <div className="text-green-600">
+                            <strong>✓ Repaired ({authRepairResult.repaired.length}):</strong> {authRepairResult.repaired.join(', ')}
+                          </div>
+                        )}
+                        {authRepairResult.failed.length > 0 && (
+                          <div className="text-red-600">
+                            <strong>✗ Failed ({authRepairResult.failed.length}):</strong> {authRepairResult.failed.join(', ')}
+                          </div>
+                        )}
+                        {authRepairResult.errors.length > 0 && (
+                          <div className="text-red-600 mt-2">
+                            <strong>Errors:</strong>
+                            <ul className="list-disc pl-5">
+                              {authRepairResult.errors.map((err, i) => (
+                                <li key={i}>{err}</li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>
@@ -2718,13 +2885,28 @@ GET    /api/export/lineitems    # Line items CSV`}</pre>
                   {permissions.canCreateUsers && (
                     <button
                       onClick={() => setShowAddUser(true)}
-                      className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors"
+                      disabled={isUserActionLoading}
+                      className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors disabled:opacity-50"
                     >
                       <UserPlus size={18} />
                       Add User
                     </button>
                   )}
                 </div>
+
+                {/* User Action Error Display */}
+                {userActionError && (
+                  <div className="mb-4 flex items-center gap-2 text-red-600 bg-red-50 border border-red-200 rounded-lg p-3">
+                    <AlertTriangle size={16} />
+                    <span className="text-sm font-medium">{userActionError}</span>
+                    <button
+                      onClick={() => setUserActionError(null)}
+                      className="ml-auto text-red-400 hover:text-red-600"
+                    >
+                      <X size={16} />
+                    </button>
+                  </div>
+                )}
 
                 {/* Add User Form */}
                 {showAddUser && (
@@ -2742,13 +2924,13 @@ GET    /api/export/lineitems    # Line items CSV`}</pre>
                         />
                       </div>
                       <div>
-                        <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Password *</label>
+                        <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Password * <span className="font-normal">(min 8 chars)</span></label>
                         <input
                           type="password"
                           value={newUser.password}
                           onChange={(e) => setNewUser({ ...newUser, password: e.target.value })}
                           className="w-full border border-slate-200 rounded-lg px-3 py-2"
-                          placeholder="********"
+                          placeholder="Min 8 characters"
                         />
                       </div>
                       <div>
@@ -2762,13 +2944,14 @@ GET    /api/export/lineitems    # Line items CSV`}</pre>
                         />
                       </div>
                       <div>
-                        <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Email</label>
+                        <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Email *</label>
                         <input
                           type="email"
                           value={newUser.email}
                           onChange={(e) => setNewUser({ ...newUser, email: e.target.value })}
                           className="w-full border border-slate-200 rounded-lg px-3 py-2"
                           placeholder="john@company.com"
+                          required
                         />
                       </div>
                       <div>
@@ -2800,14 +2983,16 @@ GET    /api/export/lineitems    # Line items CSV`}</pre>
                     <div className="flex gap-2 mt-4">
                       <button
                         onClick={handleAddUser}
-                        disabled={!newUser.username || !newUser.password || !newUser.displayName}
-                        className="px-4 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                        disabled={!newUser.username || !newUser.password || !newUser.displayName || !newUser.email || isUserActionLoading}
+                        className="px-4 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                       >
-                        Add User
+                        {isUserActionLoading ? <Loader2 size={16} className="animate-spin" /> : <UserPlus size={16} />}
+                        {isUserActionLoading ? 'Creating...' : 'Add User'}
                       </button>
                       <button
-                        onClick={() => { setShowAddUser(false); setNewUser({ username: '', password: '', displayName: '', email: '', role: 'Sales', department: '', reportsTo: '' }); }}
-                        className="px-4 py-2 border border-slate-300 rounded-lg font-medium text-slate-600 hover:bg-slate-50"
+                        onClick={() => { setShowAddUser(false); setUserActionError(null); setNewUser({ username: '', password: '', displayName: '', email: '', role: 'Sales', department: '', reportsTo: '' }); }}
+                        disabled={isUserActionLoading}
+                        className="px-4 py-2 border border-slate-300 rounded-lg font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-50"
                       >
                         Cancel
                       </button>
@@ -2866,8 +3051,18 @@ GET    /api/export/lineitems    # Line items CSV`}</pre>
                               {/* Deactivate button for active users */}
                               {permissions.canDeleteUsers && user.id !== currentUser?.id && user.isActive && (
                                 <button
-                                  onClick={() => deleteUser(user.id)}
-                                  className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
+                                  onClick={async () => {
+                                    setIsUserActionLoading(true);
+                                    try {
+                                      await deleteUser(user.id);
+                                    } catch (error) {
+                                      setUserActionError(error instanceof Error ? error.message : 'Failed to deactivate user');
+                                    } finally {
+                                      setIsUserActionLoading(false);
+                                    }
+                                  }}
+                                  disabled={isUserActionLoading}
+                                  className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors disabled:opacity-50"
                                   title="Deactivate user"
                                 >
                                   <Trash2 size={16} />
@@ -2878,8 +3073,18 @@ GET    /api/export/lineitems    # Line items CSV`}</pre>
                                 <>
                                   {permissions.canManageUsers && (
                                     <button
-                                      onClick={() => updateUser(user.id, { isActive: true })}
-                                      className="px-3 py-1.5 text-green-600 hover:text-white hover:bg-green-600 border border-green-600 rounded-lg transition-colors text-sm font-medium flex items-center gap-1"
+                                      onClick={async () => {
+                                        setIsUserActionLoading(true);
+                                        try {
+                                          await updateUser(user.id, { isActive: true });
+                                        } catch (error) {
+                                          setUserActionError(error instanceof Error ? error.message : 'Failed to reactivate user');
+                                        } finally {
+                                          setIsUserActionLoading(false);
+                                        }
+                                      }}
+                                      disabled={isUserActionLoading}
+                                      className="px-3 py-1.5 text-green-600 hover:text-white hover:bg-green-600 border border-green-600 rounded-lg transition-colors text-sm font-medium flex items-center gap-1 disabled:opacity-50"
                                       title="Reactivate user"
                                     >
                                       <CheckCircle size={14} />
@@ -3054,17 +3259,28 @@ GET    /api/export/lineitems    # Line items CSV`}</pre>
                   Cancel
                 </button>
                 <button
-                  onClick={() => {
-                    if (userToDelete && permanentlyDeleteUser(userToDelete.id)) {
-                      setShowUserDeleteConfirm(false);
-                      setUserToDelete(null);
-                      setUserDeleteConfirmText('');
+                  onClick={async () => {
+                    if (userToDelete) {
+                      setIsUserActionLoading(true);
+                      try {
+                        const success = await permanentlyDeleteUser(userToDelete.id);
+                        if (success) {
+                          setShowUserDeleteConfirm(false);
+                          setUserToDelete(null);
+                          setUserDeleteConfirmText('');
+                        }
+                      } catch (error) {
+                        setUserActionError(error instanceof Error ? error.message : 'Failed to delete user');
+                      } finally {
+                        setIsUserActionLoading(false);
+                      }
                     }
                   }}
-                  disabled={userDeleteConfirmText !== 'DELETE'}
+                  disabled={userDeleteConfirmText !== 'DELETE' || isUserActionLoading}
                   className="flex-1 bg-red-600 disabled:opacity-50 disabled:cursor-not-allowed text-white py-3 rounded-xl font-bold hover:bg-red-700 transition-colors flex items-center justify-center gap-2"
                 >
-                  <Trash2 size={18} /> Delete Forever
+                  {isUserActionLoading ? <Loader2 size={18} className="animate-spin" /> : <Trash2 size={18} />}
+                  {isUserActionLoading ? 'Deleting...' : 'Delete Forever'}
                 </button>
               </div>
             </div>

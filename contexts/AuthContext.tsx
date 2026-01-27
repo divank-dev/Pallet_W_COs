@@ -1,107 +1,45 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode, useMemo } from 'react';
-import { User, UserRole, OrgHierarchy, AuthState } from '../types';
+import React, { createContext, useContext, useState, useEffect, ReactNode, useMemo, useCallback } from 'react';
+import { User, UserRole, OrgHierarchy } from '../types';
 import { Permissions, getPermissions } from '../utils/permissions';
-
-// Default test users for all roles
-const DEFAULT_ADMIN: User = {
-  id: 'admin-001',
-  username: 'admin',
-  password: 'admin',
-  displayName: 'Administrator',
-  email: 'admin@company.com',
-  role: 'Admin',
-  department: 'Administration',
-  isActive: true,
-  createdAt: new Date()
-};
-
-const DEFAULT_MANAGER: User = {
-  id: 'manager-001',
-  username: 'manager',
-  password: 'manager',
-  displayName: 'Manager User',
-  email: 'manager@company.com',
-  role: 'Manager',
-  department: 'Administration',
-  isActive: true,
-  createdAt: new Date()
-};
-
-const DEFAULT_SALES: User = {
-  id: 'sales-001',
-  username: 'sales',
-  password: 'sales',
-  displayName: 'Sales User',
-  email: 'sales@company.com',
-  role: 'Sales',
-  department: 'Sales',
-  isActive: true,
-  createdAt: new Date()
-};
-
-const DEFAULT_PRODUCTION: User = {
-  id: 'production-001',
-  username: 'production',
-  password: 'production',
-  displayName: 'Production User',
-  email: 'production@company.com',
-  role: 'Production',
-  department: 'Production',
-  isActive: true,
-  createdAt: new Date()
-};
-
-const DEFAULT_FULFILLMENT: User = {
-  id: 'fulfillment-001',
-  username: 'fulfillment',
-  password: 'fulfillment',
-  displayName: 'Fulfillment User',
-  email: 'fulfillment@company.com',
-  role: 'Fulfillment',
-  department: 'Fulfillment',
-  isActive: true,
-  createdAt: new Date()
-};
-
-const DEFAULT_READONLY: User = {
-  id: 'readonly-001',
-  username: 'readonly',
-  password: 'readonly',
-  displayName: 'ReadOnly User',
-  email: 'readonly@company.com',
-  role: 'ReadOnly',
-  department: 'Administration',
-  isActive: true,
-  createdAt: new Date()
-};
-
-// Default org hierarchy with all test users
-const DEFAULT_ORG: OrgHierarchy = {
-  users: [DEFAULT_ADMIN, DEFAULT_MANAGER, DEFAULT_SALES, DEFAULT_PRODUCTION, DEFAULT_FULFILLMENT, DEFAULT_READONLY],
-  departments: ['Administration', 'Sales', 'Production', 'Fulfillment'],
-  lastUpdatedAt: new Date()
-};
+import { supabase } from '../src/lib/supabase';
+import {
+  fetchAllUsers,
+  fetchUserByAuthId,
+  fetchUserByUsername,
+  fetchUserByEmail,
+  updateUser as updateUserInDb,
+  deleteUser as deleteUserInDb,
+  permanentlyDeleteUser as permanentlyDeleteUserInDb,
+  updateLastLogin,
+  fetchDepartments,
+  isUsernameAvailable,
+  isEmailAvailable
+} from '../src/lib/userService';
+import { createUserWithAuth } from '../src/lib/authService';
+import type { Session, AuthChangeEvent } from '@supabase/supabase-js';
 
 interface AuthContextType {
   // Auth state
   isAuthenticated: boolean;
   currentUser: User | null;
   loginError: string | null;
+  isLoading: boolean;
 
   // Permissions
   permissions: Permissions;
 
-  // Auth actions
-  login: (username: string, password: string) => boolean;
-  logout: () => void;
+  // Auth actions (now async)
+  login: (username: string, password: string) => Promise<boolean>;
+  logout: () => Promise<void>;
 
-  // User management
+  // User management (async)
   orgHierarchy: OrgHierarchy;
-  addUser: (user: Omit<User, 'id' | 'createdAt'>) => void;
-  updateUser: (userId: string, updates: Partial<User>) => void;
-  deleteUser: (userId: string) => void;
-  permanentlyDeleteUser: (userId: string) => boolean;
-  importUsersFromCSV: (csvContent: string) => { success: number; errors: string[] };
+  refreshOrgHierarchy: () => Promise<void>;
+  addUser: (user: Omit<User, 'id' | 'createdAt' | 'password'>, password: string) => Promise<User>;
+  updateUser: (userId: string, updates: Partial<User>) => Promise<void>;
+  deleteUser: (userId: string) => Promise<void>;
+  permanentlyDeleteUser: (userId: string) => Promise<boolean>;
+  importUsersFromCSV: (csvContent: string) => Promise<{ success: number; errors: string[] }>;
 
   // Helpers
   getUserById: (userId: string) => User | undefined;
@@ -111,150 +49,332 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-const STORAGE_KEY_AUTH = 'pallet-auth';
-const STORAGE_KEY_ORG = 'pallet-org-hierarchy';
+// Default empty org hierarchy
+const EMPTY_ORG: OrgHierarchy = {
+  users: [],
+  departments: [],
+  lastUpdatedAt: new Date()
+};
 
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [loginError, setLoginError] = useState<string | null>(null);
-  const [orgHierarchy, setOrgHierarchy] = useState<OrgHierarchy>(DEFAULT_ORG);
+  const [isLoading, setIsLoading] = useState(true);
+  const [orgHierarchy, setOrgHierarchy] = useState<OrgHierarchy>(EMPTY_ORG);
 
-  // Load saved state on mount
-  useEffect(() => {
-    const savedAuth = localStorage.getItem(STORAGE_KEY_AUTH);
-    const savedOrg = localStorage.getItem(STORAGE_KEY_ORG);
+  // Fetch org hierarchy (users and departments) from Supabase
+  const refreshOrgHierarchy = useCallback(async () => {
+    try {
+      const [users, departments] = await Promise.all([
+        fetchAllUsers(),
+        fetchDepartments()
+      ]);
 
-    if (savedOrg) {
-      try {
-        const parsed = JSON.parse(savedOrg);
-        // Ensure dates are properly parsed
-        parsed.lastUpdatedAt = new Date(parsed.lastUpdatedAt);
-        parsed.users = parsed.users.map((u: any) => ({
-          ...u,
-          createdAt: new Date(u.createdAt),
-          lastLoginAt: u.lastLoginAt ? new Date(u.lastLoginAt) : undefined
-        }));
-        setOrgHierarchy(parsed);
-      } catch (e) {
-        console.error('Failed to parse saved org hierarchy:', e);
-      }
+      setOrgHierarchy({
+        users,
+        departments,
+        lastUpdatedAt: new Date(),
+        lastUpdatedBy: currentUser?.id
+      });
+    } catch (error) {
+      console.error('Failed to fetch org hierarchy:', error);
     }
+  }, [currentUser?.id]);
 
-    if (savedAuth) {
+  // Handle auth state changes from Supabase
+  const handleAuthStateChange = useCallback(async (event: AuthChangeEvent, session: Session | null) => {
+    console.log('[AuthContext] Auth state changed:', event, session?.user?.id);
+
+    // Handle sign in events (both initial session and new sign in)
+    if ((event === 'SIGNED_IN' || event === 'INITIAL_SESSION') && session?.user) {
       try {
-        const parsed = JSON.parse(savedAuth);
-        if (parsed.userId) {
-          // Re-validate the user exists
-          const org = savedOrg ? JSON.parse(savedOrg) : DEFAULT_ORG;
-          const user = org.users.find((u: User) => u.id === parsed.userId && u.isActive);
-          if (user) {
-            setCurrentUser({
-              ...user,
-              createdAt: new Date(user.createdAt),
-              lastLoginAt: user.lastLoginAt ? new Date(user.lastLoginAt) : undefined
-            });
-            setIsAuthenticated(true);
+        // Fetch user profile from our users table using auth_user_id
+        console.log('[AuthContext] Looking up user profile by auth_user_id:', session.user.id);
+        let userProfile = await fetchUserByAuthId(session.user.id);
+
+        // If no profile found by auth_user_id, try looking up by email as a fallback
+        // This handles cases where auth_user_id wasn't properly linked
+        if (!userProfile && session.user.email) {
+          console.log('[AuthContext] No profile found by auth_user_id, trying email lookup:', session.user.email);
+          userProfile = await fetchUserByEmail(session.user.email);
+
+          if (userProfile) {
+            console.log('[AuthContext] Found user by email, auth_user_id link is missing - attempting repair');
+            // User exists but auth_user_id is not linked - this is the multi-terminal bug!
+            // Attempt to repair the link
+            const { error: linkError } = await supabase
+              .from('users')
+              .update({ auth_user_id: session.user.id })
+              .eq('id', userProfile.id);
+
+            if (linkError) {
+              console.error('[AuthContext] Failed to repair auth link:', linkError);
+              // Continue anyway - user can still log in this session
+            } else {
+              console.log('[AuthContext] Successfully repaired auth_user_id link for user:', userProfile.username);
+            }
           }
         }
-      } catch (e) {
-        console.error('Failed to parse saved auth:', e);
+
+        if (userProfile) {
+          if (!userProfile.isActive) {
+            // User account is deactivated
+            console.log('[AuthContext] User account is deactivated:', userProfile.username);
+            await supabase.auth.signOut();
+            setLoginError('This account has been deactivated');
+            setCurrentUser(null);
+            setIsAuthenticated(false);
+          } else {
+            // Update last login timestamp
+            await updateLastLogin(userProfile.id);
+            setCurrentUser({ ...userProfile, lastLoginAt: new Date() });
+            setIsAuthenticated(true);
+            setLoginError(null);
+            console.log('[AuthContext] Login successful for user:', userProfile.username);
+            // Refresh org hierarchy after login
+            await refreshOrgHierarchy();
+          }
+        } else {
+          // No user profile found - this shouldn't happen in normal flow
+          // Log detailed info for debugging
+          console.error('[AuthContext] CRITICAL: No user profile found!');
+          console.error('[AuthContext] Auth user ID:', session.user.id);
+          console.error('[AuthContext] Auth email:', session.user.email);
+          console.error('[AuthContext] This usually means auth_user_id is not linked in the users table.');
+          console.error('[AuthContext] Run the setup wizard or use repairAllMissingAuthLinks() to fix.');
+          setLoginError('User profile not found. Your account may need to be re-linked. Please contact your administrator.');
+          await supabase.auth.signOut();
+          setCurrentUser(null);
+          setIsAuthenticated(false);
+        }
+      } catch (error) {
+        console.error('[AuthContext] Error fetching user profile:', error);
+        setLoginError('Failed to load user profile');
+        setCurrentUser(null);
+        setIsAuthenticated(false);
       }
+    } else if (event === 'SIGNED_OUT') {
+      setCurrentUser(null);
+      setIsAuthenticated(false);
+      setLoginError(null);
+    } else if (event === 'TOKEN_REFRESHED') {
+      // Token was refreshed, no action needed
+      console.log('[AuthContext] Token refreshed for session');
     }
-  }, []);
 
-  // Save org hierarchy when it changes
+    setIsLoading(false);
+  }, [refreshOrgHierarchy]);
+
+  // Initialize auth state on mount
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEY_ORG, JSON.stringify(orgHierarchy));
-  }, [orgHierarchy]);
+    // Check for existing session
+    const initAuth = async () => {
+      try {
+        const { data: { session }, error } = await supabase.auth.getSession();
 
-  const login = (username: string, password: string): boolean => {
-    setLoginError(null);
+        if (error) {
+          console.error('Error getting session:', error);
+          setIsLoading(false);
+          return;
+        }
 
-    const user = orgHierarchy.users.find(
-      u => u.username.toLowerCase() === username.toLowerCase() && u.password === password
-    );
-
-    if (!user) {
-      setLoginError('Invalid username or password');
-      return false;
-    }
-
-    if (!user.isActive) {
-      setLoginError('This account has been deactivated');
-      return false;
-    }
-
-    // Update last login
-    const updatedUser = { ...user, lastLoginAt: new Date() };
-    setOrgHierarchy(prev => ({
-      ...prev,
-      users: prev.users.map(u => u.id === user.id ? updatedUser : u)
-    }));
-
-    setCurrentUser(updatedUser);
-    setIsAuthenticated(true);
-    localStorage.setItem(STORAGE_KEY_AUTH, JSON.stringify({ userId: user.id }));
-
-    return true;
-  };
-
-  const logout = () => {
-    setCurrentUser(null);
-    setIsAuthenticated(false);
-    setLoginError(null);
-    localStorage.removeItem(STORAGE_KEY_AUTH);
-  };
-
-  const addUser = (userData: Omit<User, 'id' | 'createdAt'>) => {
-    const newUser: User = {
-      ...userData,
-      id: `user-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-      createdAt: new Date()
+        if (session?.user) {
+          await handleAuthStateChange('SIGNED_IN', session);
+        } else {
+          setIsLoading(false);
+        }
+      } catch (error) {
+        console.error('Error initializing auth:', error);
+        setIsLoading(false);
+      }
     };
 
-    setOrgHierarchy(prev => ({
-      ...prev,
-      users: [...prev.users, newUser],
-      lastUpdatedAt: new Date(),
-      lastUpdatedBy: currentUser?.id
-    }));
+    initAuth();
+
+    // Subscribe to auth state changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(handleAuthStateChange);
+
+    // Cleanup subscription on unmount
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, [handleAuthStateChange]);
+
+  // Load org hierarchy on mount (for user listings in admin)
+  useEffect(() => {
+    if (isAuthenticated) {
+      refreshOrgHierarchy();
+    }
+  }, [isAuthenticated, refreshOrgHierarchy]);
+
+  /**
+   * Login with username and password
+   * Since Supabase Auth requires email, we first look up the email by username
+   */
+  const login = async (username: string, password: string): Promise<boolean> => {
+    setLoginError(null);
+    setIsLoading(true);
+
+    console.log('[Auth] Login attempt for username:', username);
+
+    try {
+      // Step 1: Find user by username to get their email
+      console.log('[Auth] Step 1: Looking up user by username...');
+      const userByUsername = await fetchUserByUsername(username);
+      console.log('[Auth] Username lookup result:', userByUsername ? `Found: ${userByUsername.email}` : 'Not found');
+
+      let email: string;
+
+      if (userByUsername && userByUsername.email) {
+        email = userByUsername.email;
+      } else {
+        // Try treating the input as an email directly
+        console.log('[Auth] Trying input as email...');
+        const userByEmail = await fetchUserByEmail(username);
+        console.log('[Auth] Email lookup result:', userByEmail ? `Found: ${userByEmail.email}` : 'Not found');
+        if (userByEmail && userByEmail.email) {
+          email = userByEmail.email;
+        } else {
+          console.log('[Auth] FAILED: User not found in users table');
+          setLoginError('Invalid username or password');
+          setIsLoading(false);
+          return false;
+        }
+      }
+
+      // Step 2: Authenticate with Supabase using email + password
+      console.log('[Auth] Step 2: Authenticating with Supabase Auth using email:', email);
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password
+      });
+
+      if (error) {
+        console.log('[Auth] FAILED: Supabase Auth error:', error.message);
+        // Map Supabase auth errors to user-friendly messages
+        if (error.message.includes('Invalid login credentials')) {
+          setLoginError('Invalid username or password');
+        } else if (error.message.includes('Email not confirmed')) {
+          setLoginError('Please verify your email address');
+        } else {
+          setLoginError(error.message);
+        }
+        setIsLoading(false);
+        return false;
+      }
+
+      console.log('[Auth] SUCCESS: Supabase Auth login successful, user ID:', data.user?.id);
+      // Success - the onAuthStateChange handler will update the state
+      return true;
+    } catch (error) {
+      console.error('[Auth] EXCEPTION:', error);
+      setLoginError('An unexpected error occurred. Please try again.');
+      setIsLoading(false);
+      return false;
+    }
   };
 
-  const updateUser = (userId: string, updates: Partial<User>) => {
-    setOrgHierarchy(prev => ({
-      ...prev,
-      users: prev.users.map(u => u.id === userId ? { ...u, ...updates } : u),
-      lastUpdatedAt: new Date(),
-      lastUpdatedBy: currentUser?.id
-    }));
+  /**
+   * Logout the current user
+   */
+  const logout = async (): Promise<void> => {
+    setIsLoading(true);
+    try {
+      await supabase.auth.signOut();
+    } catch (error) {
+      console.error('Logout error:', error);
+    } finally {
+      setCurrentUser(null);
+      setIsAuthenticated(false);
+      setLoginError(null);
+      setIsLoading(false);
+    }
+  };
+
+  /**
+   * Add a new user (creates Supabase Auth account + users table entry)
+   */
+  const addUser = async (userData: Omit<User, 'id' | 'createdAt' | 'password'>, password: string): Promise<User> => {
+    if (!userData.email) {
+      throw new Error('Email is required to create a user');
+    }
+
+    // Use the auth service to create user with auth
+    const result = await createUserWithAuth(
+      {
+        username: userData.username,
+        email: userData.email,
+        displayName: userData.displayName,
+        role: userData.role,
+        department: userData.department
+      },
+      password
+    );
+
+    if (!result.success || !result.user) {
+      throw new Error(result.error || 'Failed to create user');
+    }
+
+    // Refresh org hierarchy to include new user
+    await refreshOrgHierarchy();
+
+    return result.user;
+  };
+
+  /**
+   * Update an existing user
+   */
+  const updateUser = async (userId: string, updates: Partial<User>): Promise<void> => {
+    // Validate username uniqueness if being changed
+    if (updates.username) {
+      const usernameAvailable = await isUsernameAvailable(updates.username, userId);
+      if (!usernameAvailable) {
+        throw new Error('Username is already taken');
+      }
+    }
+
+    // Validate email uniqueness if being changed
+    if (updates.email) {
+      const emailAvailable = await isEmailAvailable(updates.email, userId);
+      if (!emailAvailable) {
+        throw new Error('Email is already in use');
+      }
+    }
+
+    const updatedUser = await updateUserInDb(userId, updates);
 
     // Update current user if they updated themselves
     if (currentUser?.id === userId) {
       setCurrentUser(prev => prev ? { ...prev, ...updates } : null);
     }
+
+    // Refresh org hierarchy
+    await refreshOrgHierarchy();
   };
 
-  const deleteUser = (userId: string) => {
+  /**
+   * Soft delete a user (deactivate)
+   */
+  const deleteUser = async (userId: string): Promise<void> => {
     // Don't allow deleting the last admin
     const admins = orgHierarchy.users.filter(u => u.role === 'Admin' && u.isActive);
     const userToDelete = orgHierarchy.users.find(u => u.id === userId);
 
     if (userToDelete?.role === 'Admin' && admins.length <= 1) {
-      console.error('Cannot delete the last admin user');
-      return;
+      throw new Error('Cannot delete the last admin user');
     }
 
-    // Soft delete by deactivating
-    setOrgHierarchy(prev => ({
-      ...prev,
-      users: prev.users.map(u => u.id === userId ? { ...u, isActive: false } : u),
-      lastUpdatedAt: new Date(),
-      lastUpdatedBy: currentUser?.id
-    }));
+    await deleteUserInDb(userId);
+
+    // Refresh org hierarchy
+    await refreshOrgHierarchy();
   };
 
-  const permanentlyDeleteUser = (userId: string): boolean => {
+  /**
+   * Permanently delete a user
+   */
+  const permanentlyDeleteUser = async (userId: string): Promise<boolean> => {
     const userToDelete = orgHierarchy.users.find(u => u.id === userId);
 
     // Only allow permanent deletion of inactive users
@@ -269,37 +389,37 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       return false;
     }
 
-    // Permanently remove the user from the array
-    setOrgHierarchy(prev => ({
-      ...prev,
-      users: prev.users.filter(u => u.id !== userId),
-      lastUpdatedAt: new Date(),
-      lastUpdatedBy: currentUser?.id
-    }));
-
-    return true;
+    try {
+      await permanentlyDeleteUserInDb(userId);
+      await refreshOrgHierarchy();
+      return true;
+    } catch (error) {
+      console.error('Failed to permanently delete user:', error);
+      return false;
+    }
   };
 
-  const importUsersFromCSV = (csvContent: string): { success: number; errors: string[] } => {
+  /**
+   * Import users from CSV
+   */
+  const importUsersFromCSV = async (csvContent: string): Promise<{ success: number; errors: string[] }> => {
     const lines = csvContent.trim().split('\n');
     const errors: string[] = [];
     let success = 0;
 
     // Expected format: username,password,displayName,email,role,department,reportsTo
-    // First line is header
     if (lines.length < 2) {
       return { success: 0, errors: ['CSV file must have a header row and at least one data row'] };
     }
 
     const header = lines[0].toLowerCase().split(',').map(h => h.trim());
-    const requiredFields = ['username', 'password', 'displayname', 'role'];
+    const requiredFields = ['username', 'password', 'displayname', 'email', 'role'];
     const missingFields = requiredFields.filter(f => !header.includes(f));
 
     if (missingFields.length > 0) {
       return { success: 0, errors: [`Missing required columns: ${missingFields.join(', ')}`] };
     }
 
-    const newUsers: User[] = [];
     const validRoles: UserRole[] = ['Admin', 'Manager', 'Sales', 'Production', 'Fulfillment', 'ReadOnly'];
 
     for (let i = 1; i < lines.length; i++) {
@@ -324,8 +444,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       const reportsTo = getValue('reportsto');
 
       // Validate
-      if (!username || !password || !displayName) {
-        errors.push(`Row ${i + 1}: Missing required fields (username, password, displayName)`);
+      if (!username || !password || !displayName || !email) {
+        errors.push(`Row ${i + 1}: Missing required fields (username, password, displayName, email)`);
         continue;
       }
 
@@ -334,55 +454,48 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         continue;
       }
 
-      // Check for duplicate username
-      const existingUser = orgHierarchy.users.find(u => u.username.toLowerCase() === username.toLowerCase());
-      if (existingUser) {
-        errors.push(`Row ${i + 1}: Username "${username}" already exists`);
-        continue;
+      try {
+        await addUser(
+          {
+            username,
+            displayName,
+            email,
+            role,
+            department: department || undefined,
+            reportsTo: reportsTo || undefined,
+            isActive: true
+          },
+          password
+        );
+        success++;
+      } catch (error) {
+        errors.push(`Row ${i + 1}: ${error instanceof Error ? error.message : 'Unknown error'}`);
       }
-
-      newUsers.push({
-        id: `user-${Date.now()}-${Math.random().toString(36).substr(2, 9)}-${i}`,
-        username,
-        password,
-        displayName,
-        email: email || undefined,
-        role,
-        department: department || undefined,
-        reportsTo: reportsTo || undefined,
-        isActive: true,
-        createdAt: new Date()
-      });
-      success++;
     }
 
-    if (newUsers.length > 0) {
-      // Collect unique departments
-      const newDepartments = new Set(orgHierarchy.departments);
-      newUsers.forEach(u => {
-        if (u.department) newDepartments.add(u.department);
-      });
-
-      setOrgHierarchy(prev => ({
-        ...prev,
-        users: [...prev.users, ...newUsers],
-        departments: Array.from(newDepartments),
-        lastUpdatedAt: new Date(),
-        lastUpdatedBy: currentUser?.id
-      }));
-    }
+    // Refresh org hierarchy after import
+    await refreshOrgHierarchy();
 
     return { success, errors };
   };
 
+  /**
+   * Get a user by ID from the cached org hierarchy
+   */
   const getUserById = (userId: string): User | undefined => {
     return orgHierarchy.users.find(u => u.id === userId);
   };
 
+  /**
+   * Get users by role from the cached org hierarchy
+   */
   const getUsersByRole = (role: UserRole): User[] => {
     return orgHierarchy.users.filter(u => u.role === role && u.isActive);
   };
 
+  /**
+   * Get users by department from the cached org hierarchy
+   */
   const getUsersByDepartment = (department: string): User[] => {
     return orgHierarchy.users.filter(u => u.department === department && u.isActive);
   };
@@ -395,10 +508,12 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       isAuthenticated,
       currentUser,
       loginError,
+      isLoading,
       permissions,
       login,
       logout,
       orgHierarchy,
+      refreshOrgHierarchy,
       addUser,
       updateUser,
       deleteUser,

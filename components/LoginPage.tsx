@@ -6,19 +6,41 @@ const LoginPage: React.FC = () => {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
-  const { login, loginError } = useAuth();
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const { login, loginError, isLoading } = useAuth();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setIsLoading(true);
+    setIsSubmitting(true);
 
-    // Simulate network delay
-    await new Promise(resolve => setTimeout(resolve, 300));
-
-    login(username, password);
-    setIsLoading(false);
+    try {
+      await login(username, password);
+      // If login succeeds, the auth context will update isAuthenticated
+      // and the app will redirect to the main page
+    } catch (error) {
+      console.error('Login failed:', error);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
+
+  // Show loading state while checking for existing session
+  if (isLoading && !isSubmitting) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center p-4">
+        <div className="text-center">
+          <div className="inline-flex items-center justify-center w-20 h-20 bg-blue-600 rounded-2xl shadow-lg shadow-blue-600/30 mb-4">
+            <Shirt size={40} className="text-white" />
+          </div>
+          <h1 className="text-3xl font-black text-white mb-4">Pallet</h1>
+          <div className="flex items-center justify-center gap-2 text-slate-400">
+            <div className="w-5 h-5 border-2 border-slate-400 border-t-transparent rounded-full animate-spin" />
+            <span>Loading...</span>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center p-4">
@@ -47,9 +69,10 @@ const LoginPage: React.FC = () => {
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
                   className="w-full pl-10 pr-4 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
-                  placeholder="Enter username"
+                  placeholder="Enter username or email"
                   autoComplete="username"
                   required
+                  disabled={isSubmitting}
                 />
               </div>
             </div>
@@ -67,12 +90,14 @@ const LoginPage: React.FC = () => {
                   placeholder="Enter password"
                   autoComplete="current-password"
                   required
+                  disabled={isSubmitting}
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
                   title={showPassword ? "Hide password" : "Show password"}
+                  disabled={isSubmitting}
                 >
                   {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                 </button>
@@ -90,10 +115,10 @@ const LoginPage: React.FC = () => {
             {/* Submit Button */}
             <button
               type="submit"
-              disabled={isLoading || !username || !password}
+              disabled={isSubmitting || !username || !password}
               className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 disabled:cursor-not-allowed text-white font-bold py-3 px-4 rounded-xl transition-colors flex items-center justify-center gap-2"
             >
-              {isLoading ? (
+              {isSubmitting ? (
                 <>
                   <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
                   Signing in...

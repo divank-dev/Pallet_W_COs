@@ -1,0 +1,379 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Pallet Auth Setup</title>
+  <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: system-ui, -apple-system, sans-serif; background: #0f172a; color: #e2e8f0; padding: 20px; line-height: 1.6; }
+    .container { max-width: 800px; margin: 0 auto; }
+    h1 { color: #60a5fa; margin-bottom: 10px; }
+    h2 { color: #93c5fd; margin: 25px 0 15px; font-size: 1.2em; }
+    .card { background: #1e293b; border: 1px solid #334155; border-radius: 12px; padding: 20px; margin: 15px 0; }
+    .alert { padding: 12px 16px; border-radius: 8px; margin: 10px 0; }
+    .alert-error { background: #450a0a; border: 1px solid #dc2626; color: #fca5a5; }
+    .alert-success { background: #052e16; border: 1px solid #16a34a; color: #86efac; }
+    .alert-warn { background: #422006; border: 1px solid #d97706; color: #fcd34d; }
+    .alert-info { background: #172554; border: 1px solid #3b82f6; color: #93c5fd; }
+    button { background: #3b82f6; color: white; border: none; padding: 10px 20px; border-radius: 8px; cursor: pointer; font-weight: 600; margin: 5px 5px 5px 0; }
+    button:hover { background: #2563eb; }
+    button:disabled { background: #475569; cursor: wait; }
+    input { background: #0f172a; border: 1px solid #475569; color: #e2e8f0; padding: 10px; border-radius: 6px; margin: 5px 5px 5px 0; width: 200px; }
+    input:focus { outline: none; border-color: #3b82f6; }
+    table { width: 100%; border-collapse: collapse; margin: 15px 0; font-size: 14px; }
+    th { background: #334155; padding: 10px; text-align: left; }
+    td { padding: 10px; border-bottom: 1px solid #334155; }
+    .status-ok { color: #4ade80; }
+    .status-bad { color: #f87171; }
+    .log { background: #0f172a; padding: 15px; border-radius: 8px; font-family: monospace; font-size: 13px; max-height: 300px; overflow-y: auto; white-space: pre-wrap; }
+    .spinner { display: inline-block; width: 14px; height: 14px; border: 2px solid #60a5fa; border-top-color: transparent; border-radius: 50%; animation: spin 0.8s linear infinite; margin-right: 8px; vertical-align: middle; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    code { background: #334155; padding: 2px 6px; border-radius: 4px; font-size: 13px; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Pallet Auth Setup Tool</h1>
+    <p style="color: #94a3b8; margin-bottom: 20px;">This tool creates Supabase Auth accounts and links them to your database users.</p>
+
+    <div class="card">
+      <h2>Current Status</h2>
+      <button onclick="checkStatus()" id="btn-status">Check Status</button>
+      <div id="status-output"></div>
+    </div>
+
+    <div class="card">
+      <h2>Setup All Users</h2>
+      <p style="color: #94a3b8; margin-bottom: 10px;">Creates auth accounts for all users without one. Default password: <code>Password123!</code></p>
+      <div style="margin-bottom: 10px;">
+        <input type="password" id="setup-password" value="Password123!" placeholder="Password">
+        <button onclick="setupUsers()" id="btn-setup">Run Setup</button>
+      </div>
+      <div id="setup-output"></div>
+    </div>
+
+    <div class="card">
+      <h2>Test Login</h2>
+      <div>
+        <input type="text" id="test-user" value="admin" placeholder="Username">
+        <input type="password" id="test-pass" value="Password123!" placeholder="Password">
+        <button onclick="testLogin()" id="btn-test">Test</button>
+      </div>
+      <div id="test-output"></div>
+    </div>
+
+    <div class="card">
+      <h2>Manual Link (if needed)</h2>
+      <p style="color: #94a3b8; margin-bottom: 10px;">If a user's auth account exists with a different password, sign in to get their ID:</p>
+      <div style="margin-bottom: 15px;">
+        <input type="email" id="manual-email" placeholder="Email">
+        <input type="password" id="manual-pass" placeholder="Password">
+        <button onclick="manualGetId()">Get Auth ID</button>
+      </div>
+      <div id="manual-output"></div>
+      <p style="color: #94a3b8; margin: 15px 0 10px;">Then link that ID to the username:</p>
+      <div>
+        <input type="text" id="link-user" placeholder="Username">
+        <input type="text" id="link-id" placeholder="Auth ID (UUID)">
+        <button onclick="linkAuth()">Link</button>
+      </div>
+      <div id="link-output"></div>
+    </div>
+  </div>
+
+  <script>
+    const SUPABASE_URL = 'https://vjjhcydyydhrtuzkmxjc.supabase.co';
+    const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZqamhjeWR5eWRocnR1emtteGpjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjkxMTkzOTYsImV4cCI6MjA4NDY5NTM5Nn0.aDOa53AnVuaMmcjSJzGDqJ9TbhjCDS-fwLDrbU22AOQ';
+
+    const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
+      auth: { persistSession: false, autoRefreshToken: false }
+    });
+
+    const delay = ms => new Promise(r => setTimeout(r, ms));
+
+    function log(el, msg, type = '') {
+      const div = document.getElementById(el);
+      const cls = type ? `alert alert-${type}` : '';
+      div.innerHTML += `<div class="${cls}">${msg}</div>`;
+      div.scrollTop = div.scrollHeight;
+    }
+
+    function clear(el) {
+      document.getElementById(el).innerHTML = '';
+    }
+
+    async function checkStatus() {
+      const btn = document.getElementById('btn-status');
+      btn.disabled = true;
+      btn.innerHTML = '<span class="spinner"></span>Checking...';
+      clear('status-output');
+
+      try {
+        const { data: users, error } = await supabase
+          .from('users')
+          .select('id, username, email, auth_user_id, is_active, role')
+          .order('username');
+
+        if (error) throw error;
+
+        if (!users || users.length === 0) {
+          log('status-output', 'No users found in database!', 'warn');
+          return;
+        }
+
+        const linked = users.filter(u => u.auth_user_id);
+        const missing = users.filter(u => !u.auth_user_id);
+
+        if (missing.length === 0) {
+          log('status-output', `All ${users.length} users have auth linked!`, 'success');
+        } else {
+          log('status-output', `${missing.length} of ${users.length} users need auth setup`, 'warn');
+        }
+
+        let html = '<table><tr><th>Username</th><th>Email</th><th>Role</th><th>Auth Status</th></tr>';
+        users.forEach(u => {
+          const status = u.auth_user_id
+            ? '<span class="status-ok">✓ Linked</span>'
+            : '<span class="status-bad">✗ Missing</span>';
+          html += `<tr><td>${u.username}</td><td>${u.email || '-'}</td><td>${u.role}</td><td>${status}</td></tr>`;
+        });
+        html += '</table>';
+        log('status-output', html);
+
+      } catch (e) {
+        log('status-output', 'Error: ' + e.message, 'error');
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Check Status';
+      }
+    }
+
+    async function setupUsers() {
+      const btn = document.getElementById('btn-setup');
+      const password = document.getElementById('setup-password').value || 'Password123!';
+      btn.disabled = true;
+      btn.innerHTML = '<span class="spinner"></span>Setting up...';
+      clear('setup-output');
+
+      try {
+        // Get users needing setup
+        const { data: users, error } = await supabase
+          .from('users')
+          .select('id, username, email, display_name, auth_user_id')
+          .eq('is_active', true);
+
+        if (error) throw error;
+
+        const needSetup = users.filter(u => !u.auth_user_id && u.email);
+
+        if (needSetup.length === 0) {
+          log('setup-output', 'All users already have auth linked!', 'success');
+          return;
+        }
+
+        log('setup-output', `Processing ${needSetup.length} users...`, 'info');
+
+        let successCount = 0;
+        let failCount = 0;
+
+        for (let i = 0; i < needSetup.length; i++) {
+          const user = needSetup[i];
+          log('setup-output', `[${i+1}/${needSetup.length}] ${user.username} (${user.email})...`);
+
+          try {
+            let authUserId = null;
+
+            // Try to create auth account
+            const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
+              email: user.email,
+              password: password,
+              options: { data: { display_name: user.display_name, username: user.username } }
+            });
+
+            if (signUpError) {
+              if (signUpError.message.includes('rate limit')) {
+                log('setup-output', '  Rate limited! Waiting 60s...', 'warn');
+                await delay(60000);
+                // Retry
+                const { data: retry, error: retryErr } = await supabase.auth.signUp({
+                  email: user.email, password: password
+                });
+                if (retryErr) throw retryErr;
+                authUserId = retry.user?.id;
+              } else if (signUpError.message.includes('already registered')) {
+                // Try sign in
+                log('setup-output', '  Account exists, trying sign in...');
+                const { data: signIn, error: signInErr } = await supabase.auth.signInWithPassword({
+                  email: user.email, password: password
+                });
+                if (signInErr) {
+                  throw new Error('Auth exists but password wrong. Use Manual Link section.');
+                }
+                authUserId = signIn.user?.id;
+                await supabase.auth.signOut();
+              } else {
+                throw signUpError;
+              }
+            } else {
+              authUserId = signUpData.user?.id;
+              // Sign out if we got signed in
+              const { data: session } = await supabase.auth.getSession();
+              if (session?.session) await supabase.auth.signOut();
+            }
+
+            if (!authUserId) {
+              throw new Error('No auth ID obtained');
+            }
+
+            // Link to database
+            const { error: linkErr } = await supabase
+              .from('users')
+              .update({ auth_user_id: authUserId })
+              .eq('id', user.id);
+
+            if (linkErr) throw linkErr;
+
+            // Verify
+            const { data: verify } = await supabase
+              .from('users')
+              .select('auth_user_id')
+              .eq('id', user.id)
+              .single();
+
+            if (verify?.auth_user_id !== authUserId) {
+              throw new Error('Link verification failed');
+            }
+
+            log('setup-output', `  ✓ Success! Auth ID: ${authUserId.substring(0,8)}...`, 'success');
+            successCount++;
+
+            await delay(1500); // Delay to avoid rate limits
+
+          } catch (e) {
+            log('setup-output', `  ✗ Failed: ${e.message}`, 'error');
+            failCount++;
+          }
+        }
+
+        log('setup-output', `\nComplete: ${successCount} success, ${failCount} failed`, successCount > 0 ? 'success' : 'warn');
+
+        // Refresh status
+        await checkStatus();
+
+      } catch (e) {
+        log('setup-output', 'Error: ' + e.message, 'error');
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Run Setup';
+      }
+    }
+
+    async function testLogin() {
+      const btn = document.getElementById('btn-test');
+      const username = document.getElementById('test-user').value;
+      const password = document.getElementById('test-pass').value;
+      btn.disabled = true;
+      clear('test-output');
+
+      try {
+        // Find user
+        const { data: user, error: userErr } = await supabase
+          .from('users')
+          .select('*')
+          .ilike('username', username)
+          .single();
+
+        if (userErr || !user) {
+          log('test-output', `User "${username}" not found in database`, 'error');
+          return;
+        }
+
+        log('test-output', `Found: ${user.display_name} (${user.email})`);
+
+        if (!user.auth_user_id) {
+          log('test-output', 'No auth_user_id linked! Run Setup first.', 'error');
+          return;
+        }
+
+        // Try login
+        const { data: auth, error: authErr } = await supabase.auth.signInWithPassword({
+          email: user.email,
+          password: password
+        });
+
+        if (authErr) {
+          log('test-output', `Login failed: ${authErr.message}`, 'error');
+          return;
+        }
+
+        log('test-output', 'LOGIN SUCCESSFUL!', 'success');
+        log('test-output', `Auth ID: ${auth.user.id}`);
+
+        if (auth.user.id === user.auth_user_id) {
+          log('test-output', 'Auth ID matches database ✓', 'success');
+        } else {
+          log('test-output', 'Warning: Auth ID mismatch with database', 'warn');
+        }
+
+        await supabase.auth.signOut();
+
+      } catch (e) {
+        log('test-output', 'Error: ' + e.message, 'error');
+      } finally {
+        btn.disabled = false;
+      }
+    }
+
+    async function manualGetId() {
+      const email = document.getElementById('manual-email').value;
+      const password = document.getElementById('manual-pass').value;
+      clear('manual-output');
+
+      try {
+        const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+        if (error) throw error;
+
+        const authId = data.user.id;
+        document.getElementById('link-id').value = authId;
+        log('manual-output', `Auth ID: ${authId}`, 'success');
+        log('manual-output', 'ID copied to link field below');
+        await supabase.auth.signOut();
+      } catch (e) {
+        log('manual-output', 'Error: ' + e.message, 'error');
+      }
+    }
+
+    async function linkAuth() {
+      const username = document.getElementById('link-user').value;
+      const authId = document.getElementById('link-id').value;
+      clear('link-output');
+
+      if (!username || !authId) {
+        log('link-output', 'Enter both username and auth ID', 'warn');
+        return;
+      }
+
+      try {
+        const { data, error } = await supabase
+          .from('users')
+          .update({ auth_user_id: authId })
+          .ilike('username', username)
+          .select();
+
+        if (error) throw error;
+        if (!data || data.length === 0) {
+          log('link-output', 'User not found', 'error');
+          return;
+        }
+
+        log('link-output', `Linked auth to ${username}!`, 'success');
+      } catch (e) {
+        log('link-output', 'Error: ' + e.message, 'error');
+      }
+    }
+
+    // Auto-check on load
+    checkStatus();
+  </script>
+</body>
+</html>

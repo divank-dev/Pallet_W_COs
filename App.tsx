@@ -579,7 +579,7 @@ const AppContent: React.FC = () => {
 
           <main className="flex-1 flex flex-col h-full overflow-hidden">
             {/* Header */}
-            <header className="h-14 md:h-16 bg-white border-b border-slate-200 flex items-center justify-between px-3 md:px-8">
+            <header className="h-16 md:h-16 bg-white border-b border-slate-200 flex items-center justify-between px-3 md:px-8">
               <div className="flex items-center gap-2 md:gap-6 flex-1">
                 {/* Mobile Menu Buttons */}
                 <div className="flex items-center gap-1 md:hidden">

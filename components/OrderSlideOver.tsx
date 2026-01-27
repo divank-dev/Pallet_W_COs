@@ -2176,7 +2176,7 @@ const OrderSlideOver: React.FC<OrderSlideOverProps> = ({ order, viewMode, onClos
               </div>
             )}
           </div>
-          <button onClick={onClose} className="p-2 hover:bg-slate-200 rounded-full transition-colors flex-shrink-0">
+          <button onClick={onClose} className="p-3 hover:bg-slate-200 rounded-full transition-colors flex-shrink-0">
             <X size={24} />
           </button>
         </div>

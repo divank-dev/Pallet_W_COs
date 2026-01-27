@@ -315,7 +315,7 @@ const ProductionFloorPage: React.FC<ProductionFloorPageProps> = ({ orders, onClo
   return (
     <div className="flex-1 flex flex-col h-full overflow-hidden bg-slate-50">
       {/* Header */}
-      <header className="h-14 md:h-16 bg-white border-b border-slate-200 flex items-center justify-between px-3 md:px-8">
+      <header className="h-16 md:h-16 bg-white border-b border-slate-200 flex items-center justify-between px-3 md:px-8">
         <div className="flex items-center gap-2 md:gap-4 min-w-0 flex-1">
           <Monitor className="text-purple-600 flex-shrink-0" size={24} />
           <div className="min-w-0">
@@ -333,9 +333,9 @@ const ProductionFloorPage: React.FC<ProductionFloorPageProps> = ({ orders, onClo
           </button>
           <button
             onClick={onClose}
-            className="p-2 hover:bg-slate-100 rounded-lg transition-colors"
+            className="p-3 hover:bg-slate-100 rounded-lg transition-colors"
           >
-            <X size={20} className="text-slate-500" />
+            <X size={22} className="text-slate-500" />
           </button>
         </div>
       </header>

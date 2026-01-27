@@ -258,16 +258,16 @@ const ReportsPage: React.FC<ReportsPageProps> = ({ orders, onClose }) => {
   return (
     <div className="flex-1 flex flex-col h-full bg-slate-50">
       {/* Header */}
-      <header className="h-14 md:h-16 bg-white border-b border-slate-200 flex items-center justify-between px-3 md:px-8 flex-shrink-0">
+      <header className="h-16 md:h-16 bg-white border-b border-slate-200 flex items-center justify-between px-3 md:px-8 flex-shrink-0">
         <div className="flex items-center gap-2 md:gap-4 min-w-0 flex-1">
           <BarChart3 className="text-blue-600 flex-shrink-0" size={24} />
           <h1 className="text-base md:text-xl font-bold text-slate-900 truncate">Reports</h1>
         </div>
         <button
           onClick={onClose}
-          className="p-2 hover:bg-slate-100 rounded-full transition-colors flex-shrink-0 ml-2"
+          className="p-3 hover:bg-slate-100 rounded-full transition-colors flex-shrink-0 ml-2"
         >
-          <X size={20} />
+          <X size={22} />
         </button>
       </header>
 

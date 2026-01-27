@@ -772,12 +772,12 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ orders, onClose, onDeleteOr
   return (
     <div className="flex-1 flex flex-col h-full bg-slate-50">
       {/* Header */}
-      <header className="h-14 md:h-16 bg-white border-b border-slate-200 flex items-center justify-between px-3 md:px-8 flex-shrink-0">
+      <header className="h-16 md:h-16 bg-white border-b border-slate-200 flex items-center justify-between px-3 md:px-8 flex-shrink-0">
         <div className="flex items-center gap-2 md:gap-3 min-w-0 flex-1">
           <Settings className="text-blue-600 flex-shrink-0" size={24} />
           <h2 className="text-base md:text-xl font-bold text-slate-900 truncate">Settings</h2>
         </div>
-        <button onClick={onClose} className="p-2 hover:bg-slate-100 rounded-full transition-colors flex-shrink-0 ml-2">
+        <button onClick={onClose} className="p-3 hover:bg-slate-100 rounded-full transition-colors flex-shrink-0 ml-2">
           <X size={24} />
         </button>
       </header>

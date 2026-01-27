@@ -17,6 +17,11 @@
           padding-right: env(safe-area-inset-right);
           padding-bottom: env(safe-area-inset-bottom);
         }
+        @media (max-width: 767px) {
+          body {
+            padding-top: calc(env(safe-area-inset-top, 0px) + 12px);
+          }
+        }
         ::-webkit-scrollbar { width: 6px; }
         ::-webkit-scrollbar-track { background: transparent; }
         ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }

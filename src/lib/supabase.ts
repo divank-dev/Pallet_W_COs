@@ -59,7 +59,7 @@ export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey, {
   global: {
     fetch: (url: RequestInfo | URL, options?: RequestInit) => {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 20000); // 20s timeout
+      const timeoutId = setTimeout(() => controller.abort(), 30000); // 30s timeout (allows for Supabase project wake-up)
       return fetch(url, {
         ...options,
         signal: options?.signal || controller.signal

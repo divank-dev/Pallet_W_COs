@@ -280,6 +280,27 @@ export async function runAuthDiagnostics(): Promise<AuthDiagnostics> {
 export async function checkSetupStatus(): Promise<SetupStatus> {
   log('INFO', 'Checking setup status...');
 
+  const MAX_RETRIES = 2;
+
+  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    try {
+      return await _checkSetupStatusOnce();
+    } catch (err: any) {
+      const isAbort = err?.message?.includes('abort') || err?.message?.includes('timed out') || err?.name === 'AbortError';
+      if (isAbort && attempt < MAX_RETRIES) {
+        log('WARN', `Setup check aborted, retrying (${attempt + 1}/${MAX_RETRIES})...`);
+        await delay(1500 * (attempt + 1));
+        continue;
+      }
+      throw err;
+    }
+  }
+
+  // Fallback - should not reach here
+  throw new Error('Setup check failed after retries');
+}
+
+async function _checkSetupStatusOnce(): Promise<SetupStatus> {
   try {
     // Check if users table has data
     const { data: users, error: usersError } = await supabase
@@ -288,6 +309,12 @@ export async function checkSetupStatus(): Promise<SetupStatus> {
 
     if (usersError) {
       log('ERROR', 'Failed to query users table:', usersError);
+      // Check if this is a connection/abort error vs a real schema error
+      const msg = usersError.message?.toLowerCase() || '';
+      if (msg.includes('abort') || msg.includes('timeout') || msg.includes('fetch') || msg.includes('network')) {
+        // Connection error - throw so caller can retry or skip setup
+        throw new Error(`Connection error: ${usersError.message}`);
+      }
       return {
         needsSetup: true,
         usersTableExists: false,
@@ -361,8 +388,13 @@ export async function checkSetupStatus(): Promise<SetupStatus> {
       }
     };
 
-  } catch (error) {
+  } catch (error: any) {
     log('ERROR', 'Setup check failed:', error);
+    // Rethrow connection/abort errors so the retry logic and caller can handle them
+    const msg = error?.message?.toLowerCase() || '';
+    if (msg.includes('abort') || msg.includes('timeout') || msg.includes('connection') || msg.includes('fetch') || msg.includes('network') || error?.name === 'AbortError') {
+      throw error;
+    }
     return {
       needsSetup: true,
       usersTableExists: false,

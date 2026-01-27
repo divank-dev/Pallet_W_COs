@@ -55,6 +55,16 @@ export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey, {
     detectSessionInUrl: true,
     storageKey: STORAGE_KEY,
     flowType: 'pkce' // More secure auth flow
+  },
+  global: {
+    fetch: (url: RequestInfo | URL, options?: RequestInit) => {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 20000); // 20s timeout
+      return fetch(url, {
+        ...options,
+        signal: options?.signal || controller.signal
+      }).finally(() => clearTimeout(timeoutId));
+    }
   }
 });
 

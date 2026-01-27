@@ -165,7 +165,7 @@ const FulfillmentTrackingPage: React.FC<FulfillmentTrackingPageProps> = ({ order
       </div>
 
       {/* Orders List */}
-      <div className="flex-1 overflow-y-auto p-8">
+      <div className="flex-1 overflow-y-auto p-4 md:p-8">
         {filteredOrders.length > 0 ? (
           <div className="space-y-4">
             {filteredOrders.map(order => (

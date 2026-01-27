@@ -331,7 +331,7 @@ const ReportsPage: React.FC<ReportsPageProps> = ({ orders, onClose }) => {
       </div>
 
       {/* Content */}
-      <div className="flex-1 overflow-y-auto p-8">
+      <div className="flex-1 overflow-y-auto p-4 md:p-8">
         <div className="max-w-7xl mx-auto">
 
           {/* QUEUE TAB */}

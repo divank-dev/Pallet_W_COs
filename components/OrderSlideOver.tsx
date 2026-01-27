@@ -4019,7 +4019,7 @@ const OrderSlideOver: React.FC<OrderSlideOverProps> = ({ order, viewMode, onClos
               </div>
             </div>
 
-            <div className="flex-1 overflow-y-auto p-8" id="purchase-order-content">
+            <div className="flex-1 overflow-y-auto p-4 md:p-8" id="purchase-order-content">
               {(() => {
                 const company = getCompanySettings();
                 const selectedVendor = getSelectedVendor();
@@ -4172,7 +4172,7 @@ const OrderSlideOver: React.FC<OrderSlideOverProps> = ({ order, viewMode, onClos
             </button>
           </div>
 
-          <div className="flex-1 overflow-y-auto p-6">
+          <div className="flex-1 overflow-y-auto p-4 md:p-6">
             <div className="space-y-6">
               <div className="bg-slate-50 rounded-xl p-4 space-y-4">
                 <div className="flex items-center gap-2 text-slate-700 font-bold text-sm uppercase">

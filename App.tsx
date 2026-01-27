@@ -1,5 +1,5 @@
 
-import React, { useState, useMemo, useEffect, useCallback } from 'react';
+import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import { Search, ChevronDown, Bell, X, LogOut, Loader2, Menu, Layers } from 'lucide-react';
 import { Order, OrderStatus, ViewMode, StatusChangeLog, ProductionMethod } from './types';
 import { DUMMY_ORDERS, ORDER_STAGES, PRODUCTION_METHODS, PRODUCTION_METHOD_LABELS, PRODUCTION_METHOD_COLORS } from './constants';
@@ -55,35 +55,57 @@ const AppContent: React.FC = () => {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
+  // Track component mount state to prevent updates after unmount
+  const isMountedRef = useRef(true);
+  useEffect(() => {
+    return () => { isMountedRef.current = false; };
+  }, []);
+
   // Fetch orders from Supabase on mount
   useEffect(() => {
     let unsubscribe: (() => void) | null = null;
+    let retryCount = 0;
+    const MAX_RETRIES = 2;
 
     const loadOrders = async () => {
       try {
+        if (!isMountedRef.current) return;
         setIsLoading(true);
         setLoadError(null);
         const data = await fetchOrders();
+        if (!isMountedRef.current) return;
         setOrders(data);
 
         // Subscribe to real-time updates
         unsubscribe = subscribeToOrders((updatedOrders) => {
+          if (!isMountedRef.current) return;
           setOrders(updatedOrders);
           // Update selected order if it changed
-          if (selectedOrder) {
-            const updated = updatedOrders.find(o => o.id === selectedOrder.id);
-            if (updated) {
-              setSelectedOrder(updated);
-            }
-          }
+          setSelectedOrder(prev => {
+            if (!prev) return prev;
+            const updated = updatedOrders.find(o => o.id === prev.id);
+            return updated || prev;
+          });
         });
-      } catch (err) {
+      } catch (err: any) {
+        if (!isMountedRef.current) return;
         console.error('Failed to load orders:', err);
+
+        // Retry on abort/timeout errors
+        const isAbortError = err?.message?.includes('abort') || err?.message?.includes('timed out') || err?.name === 'AbortError';
+        if (isAbortError && retryCount < MAX_RETRIES) {
+          retryCount++;
+          console.log(`Retrying order fetch (attempt ${retryCount}/${MAX_RETRIES})...`);
+          setTimeout(() => { if (isMountedRef.current) loadOrders(); }, 2000 * retryCount);
+          return;
+        }
+
         setLoadError('Failed to load orders from database. Using offline mode.');
-        // Fallback to test data if Supabase fails
         setOrders(TEST_ORDERS);
       } finally {
-        setIsLoading(false);
+        if (isMountedRef.current) {
+          setIsLoading(false);
+        }
       }
     };
 

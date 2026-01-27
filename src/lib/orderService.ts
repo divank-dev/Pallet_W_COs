@@ -154,13 +154,23 @@ function lineItemToDb(item: LineItem, orderId: string): any {
 // ORDER CRUD OPERATIONS
 // ============================================
 
+// Timeout wrapper for async operations
+function withTimeout<T>(promise: Promise<T>, ms: number, errorMessage: string): Promise<T> {
+  let timeoutId: ReturnType<typeof setTimeout>;
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    timeoutId = setTimeout(() => reject(new Error(errorMessage)), ms);
+  });
+  return Promise.race([promise, timeoutPromise]).finally(() => clearTimeout(timeoutId));
+}
+
 // Fetch all orders with their line items
 export async function fetchOrders(): Promise<Order[]> {
-  // Fetch orders
-  const { data: ordersData, error: ordersError } = await supabase
-    .from('orders')
-    .select('*')
-    .order('created_at', { ascending: false });
+  // Fetch orders with timeout protection
+  const { data: ordersData, error: ordersError } = await withTimeout(
+    Promise.resolve(supabase.from('orders').select('*').order('created_at', { ascending: false })),
+    15000,
+    'Orders fetch timed out after 15 seconds'
+  ) as any;
 
   if (ordersError) {
     console.error('Error fetching orders:', ordersError);
@@ -171,12 +181,13 @@ export async function fetchOrders(): Promise<Order[]> {
     return [];
   }
 
-  // Fetch all line items for these orders
-  const orderIds = ordersData.map(o => o.id);
-  const { data: lineItemsData, error: lineItemsError } = await supabase
-    .from('line_items')
-    .select('*')
-    .in('order_id', orderIds);
+  // Fetch all line items for these orders with timeout
+  const orderIds = ordersData.map((o: any) => o.id);
+  const { data: lineItemsData, error: lineItemsError } = await withTimeout(
+    Promise.resolve(supabase.from('line_items').select('*').in('order_id', orderIds)),
+    15000,
+    'Line items fetch timed out after 15 seconds'
+  ) as any;
 
   if (lineItemsError) {
     console.error('Error fetching line items:', lineItemsError);
@@ -337,31 +348,43 @@ export async function deleteOrders(ids: string[]): Promise<void> {
 // ============================================
 
 export function subscribeToOrders(callback: (orders: Order[]) => void): () => void {
+  let cancelled = false;
+
+  const safeFetchAndCallback = async () => {
+    if (cancelled) return;
+    try {
+      const orders = await fetchOrders();
+      if (!cancelled) {
+        callback(orders);
+      }
+    } catch (err) {
+      if (cancelled) return;
+      if (err instanceof Error && (err.message.includes('abort') || err.message.includes('timed out'))) {
+        console.warn('[Subscription] Fetch aborted or timed out, skipping update');
+      } else {
+        console.error('[Subscription] Error fetching orders:', err);
+      }
+    }
+  };
+
   // Subscribe to order changes
   const ordersChannel = supabase
     .channel('orders-changes')
     .on(
       'postgres_changes',
       { event: '*', schema: 'public', table: 'orders' },
-      async () => {
-        // Refetch all orders when any change occurs
-        const orders = await fetchOrders();
-        callback(orders);
-      }
+      safeFetchAndCallback
     )
     .on(
       'postgres_changes',
       { event: '*', schema: 'public', table: 'line_items' },
-      async () => {
-        // Refetch all orders when line items change
-        const orders = await fetchOrders();
-        callback(orders);
-      }
+      safeFetchAndCallback
     )
     .subscribe();
 
   // Return unsubscribe function
   return () => {
+    cancelled = true;
     supabase.removeChannel(ordersChannel);
   };
 }

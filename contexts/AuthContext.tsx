@@ -180,12 +180,33 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         }
 
         if (session?.user) {
+          // CRITICAL FIX: Validate the cached session against the server
+          // getSession() only reads from localStorage and may return stale/invalid tokens
+          // getUser() actually validates the JWT with Supabase servers
+          console.log('[AuthContext] Found cached session, validating with server...');
+          const { data: { user }, error: userError } = await supabase.auth.getUser();
+
+          if (userError || !user) {
+            // Session is stale/invalid - clear it and allow fresh login
+            console.log('[AuthContext] Cached session invalid, clearing stale data:', userError?.message);
+            await supabase.auth.signOut();
+            setIsLoading(false);
+            return;
+          }
+
+          console.log('[AuthContext] Session validated successfully for user:', user.id);
           await handleAuthStateChange('SIGNED_IN', session);
         } else {
           setIsLoading(false);
         }
       } catch (error) {
         console.error('Error initializing auth:', error);
+        // Clear potentially corrupted session data on error
+        try {
+          await supabase.auth.signOut();
+        } catch {
+          // Ignore signOut errors during cleanup
+        }
         setIsLoading(false);
       }
     };
@@ -219,6 +240,15 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     console.log('[Auth] Login attempt for username:', username);
 
     try {
+      // Clear any existing stale session before attempting fresh login
+      // This fixes the multi-computer login issue where old cached sessions interfere
+      console.log('[Auth] Clearing any existing session before fresh login...');
+      try {
+        await supabase.auth.signOut();
+      } catch {
+        // Ignore signOut errors - we're just clearing stale data
+      }
+
       // Step 1: Find user by username to get their email
       console.log('[Auth] Step 1: Looking up user by username...');
       const userByUsername = await fetchUserByUsername(username);

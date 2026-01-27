@@ -16,9 +16,11 @@ interface WorkflowSidebarProps {
   isDeadOpportunitiesActive?: boolean;
   onProductionFloorClick?: () => void;
   isProductionFloorActive?: boolean;
+  isMobileOpen?: boolean;
+  onMobileClose?: () => void;
 }
 
-const WorkflowSidebar: React.FC<WorkflowSidebarProps> = ({ currentStage, counts, deadOpportunitiesCount = 0, onStageSelect, onNewOrder, onNewChangeOrder, onDeadOpportunitiesClick, isDeadOpportunitiesActive, onProductionFloorClick, isProductionFloorActive }) => {
+const WorkflowSidebar: React.FC<WorkflowSidebarProps> = ({ currentStage, counts, deadOpportunitiesCount = 0, onStageSelect, onNewOrder, onNewChangeOrder, onDeadOpportunitiesClick, isDeadOpportunitiesActive, onProductionFloorClick, isProductionFloorActive, isMobileOpen, onMobileClose }) => {
   const { permissions, currentUser } = useAuth();
 
   // Filter stages based on user role
@@ -41,7 +43,20 @@ const WorkflowSidebar: React.FC<WorkflowSidebarProps> = ({ currentStage, counts,
   const showLeadSection = currentUser?.role !== 'Production'; // Production doesn't see Lead
 
   return (
-    <div className="w-72 bg-white border-r border-slate-200 flex flex-col">
+    <>
+      {/* Mobile overlay */}
+      {isMobileOpen && (
+        <div
+          className="fixed inset-0 bg-slate-900/50 z-40 md:hidden"
+          onClick={onMobileClose}
+        />
+      )}
+      <div className={`
+        fixed md:relative inset-y-0 left-0 z-50
+        w-72 bg-white border-r border-slate-200 flex flex-col
+        transform transition-transform duration-300 ease-in-out
+        ${isMobileOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}
+      `}>
       {permissions.canCreateOrders && (
         <div className="p-6 space-y-3">
           <button
@@ -262,7 +277,8 @@ const WorkflowSidebar: React.FC<WorkflowSidebarProps> = ({ currentStage, counts,
           </>
         )}
       </div>
-    </div>
+      </div>
+    </>
   );
 };
 

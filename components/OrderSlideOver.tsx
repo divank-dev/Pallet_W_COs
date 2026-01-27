@@ -2126,7 +2126,7 @@ const OrderSlideOver: React.FC<OrderSlideOverProps> = ({ order, viewMode, onClos
   };
 
   return (
-    <div className="fixed inset-y-0 right-0 w-[700px] bg-white shadow-2xl z-50 flex flex-col transform transition-transform duration-300">
+    <div className="fixed inset-0 md:inset-y-0 md:right-0 md:left-auto w-full md:w-[700px] bg-white shadow-2xl z-50 flex flex-col transform transition-transform duration-300">
       {/* Header */}
       <div className="p-6 border-b border-slate-100 bg-slate-50">
         <div className="flex justify-between items-start">

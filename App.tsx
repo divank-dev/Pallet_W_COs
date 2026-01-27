@@ -1,6 +1,6 @@
 
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
-import { Search, ChevronDown, Bell, X, LogOut, Loader2 } from 'lucide-react';
+import { Search, ChevronDown, Bell, X, LogOut, Loader2, Menu, Layers } from 'lucide-react';
 import { Order, OrderStatus, ViewMode, StatusChangeLog, ProductionMethod } from './types';
 import { DUMMY_ORDERS, ORDER_STAGES, PRODUCTION_METHODS, PRODUCTION_METHOD_LABELS, PRODUCTION_METHOD_COLORS } from './constants';
 import { TEST_ORDERS } from './tests/testOrders';
@@ -40,6 +40,20 @@ const AppContent: React.FC = () => {
   const [isDeadOpportunitiesActive, setIsDeadOpportunitiesActive] = useState(false);
   const [deadOpportunitySearch, setDeadOpportunitySearch] = useState('');
   const [isSaving, setIsSaving] = useState(false);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [isMobileWorkflowOpen, setIsMobileWorkflowOpen] = useState(false);
+
+  // Close mobile menus when resizing to desktop
+  useEffect(() => {
+    const handleResize = () => {
+      if (window.innerWidth >= 768) {
+        setIsMobileMenuOpen(false);
+        setIsMobileWorkflowOpen(false);
+      }
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   // Fetch orders from Supabase on mount
   useEffect(() => {
@@ -457,10 +471,12 @@ const AppContent: React.FC = () => {
       )}
       <Sidebar
         activeView={activeView}
-        onSettingsClick={() => setActiveView('settings')}
-        onOrdersClick={() => setActiveView('orders')}
-        onReportsClick={() => setActiveView('reports')}
-        onFulfillmentClick={() => setActiveView('fulfillment')}
+        onSettingsClick={() => { setActiveView('settings'); setIsMobileMenuOpen(false); }}
+        onOrdersClick={() => { setActiveView('orders'); setIsMobileMenuOpen(false); }}
+        onReportsClick={() => { setActiveView('reports'); setIsMobileMenuOpen(false); }}
+        onFulfillmentClick={() => { setActiveView('fulfillment'); setIsMobileMenuOpen(false); }}
+        isMobileOpen={isMobileMenuOpen}
+        onMobileClose={() => setIsMobileMenuOpen(false)}
       />
       {activeView === 'settings' ? (
         <SettingsPage orders={orders} onClose={() => setActiveView('orders')} onDeleteOrders={handleDeleteOrders} />
@@ -486,17 +502,21 @@ const AppContent: React.FC = () => {
               setCurrentStage(stage);
               setActiveView('orders');
               setIsDeadOpportunitiesActive(false);
+              setIsMobileWorkflowOpen(false);
             }}
-            onNewOrder={() => setShowNewOrder(true)}
-            onNewChangeOrder={() => setShowChangeOrder(true)}
+            onNewOrder={() => { setShowNewOrder(true); setIsMobileWorkflowOpen(false); }}
+            onNewChangeOrder={() => { setShowChangeOrder(true); setIsMobileWorkflowOpen(false); }}
             onDeadOpportunitiesClick={() => {
               setIsDeadOpportunitiesActive(true);
               setSelectedCustomer('');
               setActiveView('orders');
+              setIsMobileWorkflowOpen(false);
             }}
             isDeadOpportunitiesActive={isDeadOpportunitiesActive}
-            onProductionFloorClick={() => setActiveView('productionFloor')}
+            onProductionFloorClick={() => { setActiveView('productionFloor'); setIsMobileWorkflowOpen(false); }}
             isProductionFloorActive={true}
+            isMobileOpen={isMobileWorkflowOpen}
+            onMobileClose={() => setIsMobileWorkflowOpen(false)}
           />
           <ProductionFloorPage
             orders={orders}
@@ -519,24 +539,43 @@ const AppContent: React.FC = () => {
               setActiveView('orders');
               setIsDeadOpportunitiesActive(false);
               setDeadOpportunitySearch('');
+              setIsMobileWorkflowOpen(false);
             }}
-            onNewOrder={() => setShowNewOrder(true)}
-            onNewChangeOrder={() => setShowChangeOrder(true)}
+            onNewOrder={() => { setShowNewOrder(true); setIsMobileWorkflowOpen(false); }}
+            onNewChangeOrder={() => { setShowChangeOrder(true); setIsMobileWorkflowOpen(false); }}
             onDeadOpportunitiesClick={() => {
               setIsDeadOpportunitiesActive(true);
               setSelectedCustomer('');
+              setIsMobileWorkflowOpen(false);
             }}
             isDeadOpportunitiesActive={isDeadOpportunitiesActive}
-            onProductionFloorClick={() => setActiveView('productionFloor')}
+            onProductionFloorClick={() => { setActiveView('productionFloor'); setIsMobileWorkflowOpen(false); }}
             isProductionFloorActive={activeView === 'productionFloor'}
+            isMobileOpen={isMobileWorkflowOpen}
+            onMobileClose={() => setIsMobileWorkflowOpen(false)}
           />
 
           <main className="flex-1 flex flex-col h-full overflow-hidden">
             {/* Header */}
-            <header className="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-8">
-              <div className="flex items-center gap-6 flex-1">
-                <h1 className="text-xl font-bold text-slate-900">Gemini Studio</h1>
-                <div className="w-96">
+            <header className="h-14 md:h-16 bg-white border-b border-slate-200 flex items-center justify-between px-3 md:px-8">
+              <div className="flex items-center gap-2 md:gap-6 flex-1">
+                {/* Mobile Menu Buttons */}
+                <div className="flex items-center gap-1 md:hidden">
+                  <button
+                    className="p-2 text-slate-600 hover:bg-slate-100 rounded-lg"
+                    onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+                  >
+                    <Menu size={24} />
+                  </button>
+                  <button
+                    className="p-2 text-slate-600 hover:bg-slate-100 rounded-lg"
+                    onClick={() => setIsMobileWorkflowOpen(!isMobileWorkflowOpen)}
+                  >
+                    <Layers size={24} />
+                  </button>
+                </div>
+                <h1 className="text-lg md:text-xl font-bold text-slate-900">Gemini Studio</h1>
+                <div className="hidden sm:block w-40 md:w-64 lg:w-96">
                   <CustomerSearch
                     orders={orders}
                     onSelectCustomer={(customer) => {
@@ -549,8 +588,8 @@ const AppContent: React.FC = () => {
                 </div>
               </div>
 
-              <div className="flex items-center gap-4">
-                <div className="flex bg-slate-100 p-1 rounded-lg">
+              <div className="flex items-center gap-2 md:gap-4">
+                <div className="hidden md:flex bg-slate-100 p-1 rounded-lg">
                   <button
                     onClick={() => setViewMode('Sales')}
                     className={`px-3 py-1.5 text-xs font-bold rounded-md transition-all ${
@@ -594,7 +633,7 @@ const AppContent: React.FC = () => {
             </header>
 
             {/* Content Area */}
-            <div className="flex-1 overflow-y-auto p-8">
+            <div className="flex-1 overflow-y-auto p-4 md:p-8">
               <div className="max-w-7xl mx-auto">
                 {/* Customer Filter Active Banner */}
                 {selectedCustomer && (

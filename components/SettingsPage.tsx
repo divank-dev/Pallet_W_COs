@@ -772,7 +772,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ orders, onClose, onDeleteOr
   return (
     <div className="flex-1 flex flex-col h-full bg-slate-50">
       {/* Header */}
-      <header className="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-8 flex-shrink-0">
+      <header className="h-14 md:h-16 bg-white border-b border-slate-200 flex items-center justify-between px-4 md:px-8 flex-shrink-0">
         <div className="flex items-center gap-3">
           <Settings className="text-blue-600" size={28} />
           <div>
@@ -1300,7 +1300,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ orders, onClose, onDeleteOr
               </div>
 
               {/* Quick Stats */}
-              <div className="grid grid-cols-4 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                 <div className="bg-emerald-50 rounded-xl p-4 border border-emerald-100">
                   <p className="text-sm font-medium text-emerald-600">Leads</p>
                   <p className="text-3xl font-black text-emerald-700">{dbStats.leadsCount}</p>
@@ -1605,7 +1605,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ orders, onClose, onDeleteOr
                     </div>
 
                     {/* Related Entities Row */}
-                    <div className="grid grid-cols-4 gap-4 mb-8">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
                       {/* LineItem */}
                       <div className="bg-emerald-600 text-white rounded-xl p-1 shadow-lg">
                         <div className="bg-emerald-700 rounded-t-lg px-3 py-2 font-bold flex items-center gap-2">
@@ -2062,7 +2062,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ orders, onClose, onDeleteOr
                 {/* Workflow Legend */}
                 <div className="mt-6 pt-6 border-t border-slate-200">
                   <h5 className="font-bold text-slate-700 text-sm mb-4">Workflow Legend</h5>
-                  <div className="grid grid-cols-4 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                     <div className="flex items-center gap-3">
                       <div className="w-8 h-8 rounded-full bg-emerald-500 text-white flex items-center justify-center text-xs font-bold">0-2</div>
                       <div>

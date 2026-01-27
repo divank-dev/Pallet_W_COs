@@ -83,7 +83,7 @@ const FulfillmentTrackingPage: React.FC<FulfillmentTrackingPageProps> = ({ order
   return (
     <div className="flex-1 flex flex-col h-full overflow-hidden bg-slate-50">
       {/* Header */}
-      <header className="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-8">
+      <header className="h-14 md:h-16 bg-white border-b border-slate-200 flex items-center justify-between px-4 md:px-8">
         <div className="flex items-center gap-4">
           <Package className="text-blue-600" size={24} />
           <div>
@@ -100,8 +100,8 @@ const FulfillmentTrackingPage: React.FC<FulfillmentTrackingPageProps> = ({ order
       </header>
 
       {/* Stats Bar */}
-      <div className="bg-white border-b border-slate-200 px-8 py-4">
-        <div className="grid grid-cols-4 gap-4">
+      <div className="bg-white border-b border-slate-200 px-4 md:px-8 py-4">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
           <button
             onClick={() => setFilterType('all')}
             className={`p-4 rounded-xl border-2 transition-all ${
@@ -151,7 +151,7 @@ const FulfillmentTrackingPage: React.FC<FulfillmentTrackingPageProps> = ({ order
       </div>
 
       {/* Search */}
-      <div className="px-8 py-4 bg-white border-b border-slate-200">
+      <div className="px-4 md:px-8 py-4 bg-white border-b border-slate-200">
         <div className="relative">
           <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
           <input

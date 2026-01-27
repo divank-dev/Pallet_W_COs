@@ -258,7 +258,7 @@ const ReportsPage: React.FC<ReportsPageProps> = ({ orders, onClose }) => {
   return (
     <div className="flex-1 flex flex-col h-full bg-slate-50">
       {/* Header */}
-      <header className="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-8 flex-shrink-0">
+      <header className="h-14 md:h-16 bg-white border-b border-slate-200 flex items-center justify-between px-4 md:px-8 flex-shrink-0">
         <div className="flex items-center gap-4">
           <BarChart3 className="text-blue-600" size={24} />
           <h1 className="text-xl font-bold text-slate-900">Reports & Analytics</h1>
@@ -272,7 +272,7 @@ const ReportsPage: React.FC<ReportsPageProps> = ({ orders, onClose }) => {
       </header>
 
       {/* Tab Navigation */}
-      <div className="bg-white border-b border-slate-200 px-8">
+      <div className="bg-white border-b border-slate-200 px-4 md:px-8 overflow-x-auto">
         <div className="flex gap-1">
           <button
             onClick={() => setActiveTab('queue')}
@@ -324,7 +324,7 @@ const ReportsPage: React.FC<ReportsPageProps> = ({ orders, onClose }) => {
           {activeTab === 'queue' && (
             <div className="space-y-8">
               {/* Summary Cards */}
-              <div className="grid grid-cols-4 gap-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
                 <div className="bg-white rounded-xl p-6 border border-slate-200">
                   <div className="flex items-center gap-3 mb-3">
                     <div className="p-2 bg-blue-100 rounded-lg">
@@ -489,7 +489,7 @@ const ReportsPage: React.FC<ReportsPageProps> = ({ orders, onClose }) => {
               </div>
 
               {/* Key Metrics */}
-              <div className="grid grid-cols-4 gap-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
                 <div className="bg-white rounded-xl p-6 border border-slate-200">
                   <div className="flex items-center justify-between mb-3">
                     <span className="text-sm font-medium text-slate-500">Total Revenue</span>
@@ -567,7 +567,7 @@ const ReportsPage: React.FC<ReportsPageProps> = ({ orders, onClose }) => {
                   Performance by Decoration Method
                 </h3>
 
-                <div className="grid grid-cols-4 gap-6">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
                   {(['ScreenPrint', 'Embroidery', 'DTF', 'Other'] as ProductionMethod[]).map(method => {
                     const stats = performanceAnalytics.decorationStats[method];
                     const revenuePercent = performanceAnalytics.totalRevenue > 0
@@ -753,7 +753,7 @@ const ReportsPage: React.FC<ReportsPageProps> = ({ orders, onClose }) => {
               </div>
 
               {/* Summary Cards */}
-              <div className="grid grid-cols-4 gap-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
                 <div className="bg-white rounded-xl p-6 border border-slate-200">
                   <div className="flex items-center justify-between mb-3">
                     <span className="text-sm font-medium text-slate-500">Total Customers</span>

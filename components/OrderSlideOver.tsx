@@ -2128,11 +2128,11 @@ const OrderSlideOver: React.FC<OrderSlideOverProps> = ({ order, viewMode, onClos
   return (
     <div className="fixed inset-0 md:inset-y-0 md:right-0 md:left-auto w-full md:w-[700px] bg-white shadow-2xl z-50 flex flex-col transform transition-transform duration-300">
       {/* Header */}
-      <div className="p-6 border-b border-slate-100 bg-slate-50">
-        <div className="flex justify-between items-start">
-          <div>
-            <div className="flex items-center gap-2">
-              <h2 className="text-2xl font-bold text-slate-900">{order.customer}</h2>
+      <div className="p-4 md:p-6 border-b border-slate-100 bg-slate-50">
+        <div className="flex justify-between items-start gap-2">
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-2 flex-wrap">
+              <h2 className="text-lg md:text-2xl font-bold text-slate-900 truncate">{order.customer}</h2>
               {order.rushOrder && (
                 <span className="px-2 py-0.5 bg-red-100 text-red-700 text-xs font-bold rounded-full">RUSH</span>
               )}
@@ -2176,13 +2176,13 @@ const OrderSlideOver: React.FC<OrderSlideOverProps> = ({ order, viewMode, onClos
               </div>
             )}
           </div>
-          <button onClick={onClose} className="p-2 hover:bg-slate-200 rounded-full transition-colors">
+          <button onClick={onClose} className="p-2 hover:bg-slate-200 rounded-full transition-colors flex-shrink-0">
             <X size={24} />
           </button>
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto p-6 space-y-8">
+      <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-6 md:space-y-8">
 
         {/* Stage 0: Lead */}
         {order.status === 'Lead' && (

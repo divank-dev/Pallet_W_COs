@@ -83,17 +83,17 @@ const FulfillmentTrackingPage: React.FC<FulfillmentTrackingPageProps> = ({ order
   return (
     <div className="flex-1 flex flex-col h-full overflow-hidden bg-slate-50">
       {/* Header */}
-      <header className="h-14 md:h-16 bg-white border-b border-slate-200 flex items-center justify-between px-4 md:px-8">
-        <div className="flex items-center gap-4">
-          <Package className="text-blue-600" size={24} />
-          <div>
-            <h1 className="text-xl font-bold text-slate-900">Fulfillment Tracking</h1>
-            <p className="text-xs text-slate-500">Track shipments and customer pickups</p>
+      <header className="h-14 md:h-16 bg-white border-b border-slate-200 flex items-center justify-between px-3 md:px-8">
+        <div className="flex items-center gap-2 md:gap-4 min-w-0 flex-1">
+          <Package className="text-blue-600 flex-shrink-0" size={24} />
+          <div className="min-w-0">
+            <h1 className="text-base md:text-xl font-bold text-slate-900 truncate">Fulfillment</h1>
+            <p className="text-xs text-slate-500 hidden md:block">Track shipments and customer pickups</p>
           </div>
         </div>
         <button
           onClick={onClose}
-          className="p-2 hover:bg-slate-100 rounded-lg transition-colors"
+          className="p-2 hover:bg-slate-100 rounded-lg transition-colors flex-shrink-0 ml-2"
         >
           <X size={20} className="text-slate-500" />
         </button>

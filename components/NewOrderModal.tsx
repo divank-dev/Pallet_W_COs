@@ -78,13 +78,13 @@ const NewOrderModal: React.FC<NewOrderModalProps> = ({ onClose, onCreate }) => {
   return (
     <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-[100] p-4">
       <div className="bg-white rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200 max-h-[90vh] flex flex-col">
-        <div className="flex justify-between items-center p-6 border-b border-slate-100">
-          <h2 className="text-xl font-bold">{mode === 'lead' ? 'Capture New Lead' : 'Start New Quote'}</h2>
-          <button onClick={onClose} className="p-2 hover:bg-slate-100 rounded-full transition-colors"><X size={20} /></button>
+        <div className="flex justify-between items-center p-4 md:p-6 border-b border-slate-100">
+          <h2 className="text-lg md:text-xl font-bold">{mode === 'lead' ? 'Capture New Lead' : 'Start New Quote'}</h2>
+          <button onClick={onClose} className="p-2 hover:bg-slate-100 rounded-full transition-colors flex-shrink-0"><X size={20} /></button>
         </div>
 
         {/* Mode Toggle */}
-        <div className="px-6 pt-4">
+        <div className="px-4 md:px-6 pt-4">
           <div className="flex bg-slate-100 p-1 rounded-xl">
             <button
               type="button"

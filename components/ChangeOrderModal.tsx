@@ -49,17 +49,17 @@ const ChangeOrderModal: React.FC<ChangeOrderModalProps> = ({ onClose, onSelectOr
   return (
     <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-[100] p-4">
       <div className="bg-white rounded-2xl w-full max-w-2xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200 max-h-[90vh] flex flex-col">
-        <div className="flex justify-between items-center p-6 border-b border-slate-100 bg-orange-50">
-          <div>
-            <h2 className="text-xl font-bold text-orange-900">Add Change Order Items</h2>
-            <p className="text-sm text-orange-600 mt-1">Select the order to add change order items to</p>
+        <div className="flex justify-between items-start gap-2 p-4 md:p-6 border-b border-slate-100 bg-orange-50">
+          <div className="min-w-0">
+            <h2 className="text-lg md:text-xl font-bold text-orange-900">Change Order</h2>
+            <p className="text-xs md:text-sm text-orange-600 mt-1">Select order to add items to</p>
           </div>
-          <button onClick={onClose} className="p-2 hover:bg-orange-100 rounded-full transition-colors">
+          <button onClick={onClose} className="p-2 hover:bg-orange-100 rounded-full transition-colors flex-shrink-0">
             <X size={20} />
           </button>
         </div>
 
-        <div className="flex-1 overflow-y-auto p-6 space-y-6">
+        <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-4 md:space-y-6">
           {!selectedParentOrder ? (
             <>
               {/* Search Box */}

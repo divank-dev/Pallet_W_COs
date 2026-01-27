@@ -772,21 +772,32 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ orders, onClose, onDeleteOr
   return (
     <div className="flex-1 flex flex-col h-full bg-slate-50">
       {/* Header */}
-      <header className="h-14 md:h-16 bg-white border-b border-slate-200 flex items-center justify-between px-4 md:px-8 flex-shrink-0">
-        <div className="flex items-center gap-3">
-          <Settings className="text-blue-600" size={28} />
-          <div>
-            <h2 className="text-xl font-bold text-slate-900">Settings & Documentation</h2>
-          </div>
+      <header className="h-14 md:h-16 bg-white border-b border-slate-200 flex items-center justify-between px-3 md:px-8 flex-shrink-0">
+        <div className="flex items-center gap-2 md:gap-3 min-w-0 flex-1">
+          <Settings className="text-blue-600 flex-shrink-0" size={24} />
+          <h2 className="text-base md:text-xl font-bold text-slate-900 truncate">Settings</h2>
         </div>
-        <button onClick={onClose} className="p-2 hover:bg-slate-100 rounded-full transition-colors">
+        <button onClick={onClose} className="p-2 hover:bg-slate-100 rounded-full transition-colors flex-shrink-0 ml-2">
           <X size={24} />
         </button>
       </header>
 
+      {/* Mobile Tab Selector */}
+      <div className="md:hidden bg-white border-b border-slate-200 px-3 py-2">
+        <select
+          value={activeTab}
+          onChange={(e) => setActiveTab(e.target.value as any)}
+          className="w-full p-3 border border-slate-200 rounded-xl text-sm font-medium bg-white"
+        >
+          {tabs.map(tab => (
+            <option key={tab.id} value={tab.id}>{tab.label}</option>
+          ))}
+        </select>
+      </div>
+
       <div className="flex flex-1 overflow-hidden">
-        {/* Sidebar Navigation */}
-        <div className="w-56 bg-white border-r border-slate-200 p-4 flex-shrink-0">
+        {/* Sidebar Navigation - Hidden on mobile */}
+        <div className="hidden md:block w-56 bg-white border-r border-slate-200 p-4 flex-shrink-0">
           <nav className="space-y-1">
             {tabs.map(tab => (
               <button
@@ -806,7 +817,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ orders, onClose, onDeleteOr
         </div>
 
         {/* Content Area */}
-        <div className="flex-1 overflow-y-auto p-8">
+        <div className="flex-1 overflow-y-auto p-4 md:p-8">
           {/* Company Info Tab */}
           {activeTab === 'company' && (
             <div className="space-y-8 max-w-3xl">

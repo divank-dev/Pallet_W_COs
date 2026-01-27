@@ -315,21 +315,21 @@ const ProductionFloorPage: React.FC<ProductionFloorPageProps> = ({ orders, onClo
   return (
     <div className="flex-1 flex flex-col h-full overflow-hidden bg-slate-50">
       {/* Header */}
-      <header className="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-8">
-        <div className="flex items-center gap-4">
-          <Monitor className="text-purple-600" size={24} />
-          <div>
-            <h1 className="text-xl font-bold text-slate-900">Production Floor</h1>
-            <p className="text-xs text-slate-500">Dashboard & Productivity Tracking</p>
+      <header className="h-14 md:h-16 bg-white border-b border-slate-200 flex items-center justify-between px-3 md:px-8">
+        <div className="flex items-center gap-2 md:gap-4 min-w-0 flex-1">
+          <Monitor className="text-purple-600 flex-shrink-0" size={24} />
+          <div className="min-w-0">
+            <h1 className="text-base md:text-xl font-bold text-slate-900 truncate">Production</h1>
+            <p className="text-xs text-slate-500 hidden md:block">Dashboard & Productivity Tracking</p>
           </div>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 md:gap-3 flex-shrink-0">
           <button
             onClick={() => setTvMode(true)}
-            className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-xl font-bold hover:bg-purple-700 transition-colors"
+            className="flex items-center gap-1 md:gap-2 px-2 md:px-4 py-2 bg-purple-600 text-white rounded-xl font-bold hover:bg-purple-700 transition-colors text-xs md:text-sm"
           >
-            <Tv size={18} />
-            TV Display Mode
+            <Tv size={16} />
+            <span className="hidden sm:inline">TV Mode</span>
           </button>
           <button
             onClick={onClose}
@@ -340,8 +340,21 @@ const ProductionFloorPage: React.FC<ProductionFloorPageProps> = ({ orders, onClo
         </div>
       </header>
 
-      {/* Tabs */}
-      <div className="bg-white border-b border-slate-200 px-8">
+      {/* Mobile Tab Selector */}
+      <div className="md:hidden bg-white border-b border-slate-200 px-3 py-2">
+        <select
+          value={activeTab}
+          onChange={(e) => setActiveTab(e.target.value as any)}
+          className="w-full p-3 border border-slate-200 rounded-xl text-sm font-medium bg-white"
+        >
+          <option value="dashboard">Dashboard</option>
+          <option value="worksheet">Productivity Worksheet</option>
+          <option value="history">History</option>
+        </select>
+      </div>
+
+      {/* Tabs - Hidden on mobile */}
+      <div className="hidden md:block bg-white border-b border-slate-200 px-8">
         <div className="flex gap-1">
           <button
             onClick={() => setActiveTab('dashboard')}
@@ -377,7 +390,7 @@ const ProductionFloorPage: React.FC<ProductionFloorPageProps> = ({ orders, onClo
       </div>
 
       {/* Content */}
-      <div className="flex-1 overflow-y-auto p-8">
+      <div className="flex-1 overflow-y-auto p-4 md:p-8">
         {activeTab === 'dashboard' && (
           <div className="space-y-6">
             {/* Stats Row */}

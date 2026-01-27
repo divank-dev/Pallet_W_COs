@@ -168,6 +168,14 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   // Initialize auth state on mount
   useEffect(() => {
+    // Helper to add timeout to async operations to prevent hanging
+    const withTimeout = <T,>(promise: Promise<T>, ms: number, fallback: T): Promise<T> => {
+      return Promise.race([
+        promise,
+        new Promise<T>((resolve) => setTimeout(() => resolve(fallback), ms))
+      ]);
+    };
+
     // Check for existing session
     const initAuth = async () => {
       try {
@@ -183,13 +191,23 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           // CRITICAL FIX: Validate the cached session against the server
           // getSession() only reads from localStorage and may return stale/invalid tokens
           // getUser() actually validates the JWT with Supabase servers
+          // Add timeout to prevent hanging on slow/failed network requests
           console.log('[AuthContext] Found cached session, validating with server...');
-          const { data: { user }, error: userError } = await supabase.auth.getUser();
+
+          const validationResult = await withTimeout(
+            supabase.auth.getUser(),
+            5000, // 5 second timeout
+            { data: { user: null }, error: { message: 'Validation timeout' } as any }
+          );
+
+          const user = validationResult.data?.user;
+          const userError = validationResult.error;
 
           if (userError || !user) {
-            // Session is stale/invalid - clear it and allow fresh login
+            // Session is stale/invalid/timed out - clear it and allow fresh login
             console.log('[AuthContext] Cached session invalid, clearing stale data:', userError?.message);
-            await supabase.auth.signOut();
+            // Use timeout for signOut too to prevent hanging
+            await withTimeout(supabase.auth.signOut(), 2000, undefined);
             setIsLoading(false);
             return;
           }
@@ -203,7 +221,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         console.error('Error initializing auth:', error);
         // Clear potentially corrupted session data on error
         try {
-          await supabase.auth.signOut();
+          await withTimeout(supabase.auth.signOut(), 2000, undefined);
         } catch {
           // Ignore signOut errors during cleanup
         }
@@ -242,9 +260,13 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     try {
       // Clear any existing stale session before attempting fresh login
       // This fixes the multi-computer login issue where old cached sessions interfere
+      // Use a short timeout to prevent hanging on stale sessions
       console.log('[Auth] Clearing any existing session before fresh login...');
       try {
-        await supabase.auth.signOut();
+        await Promise.race([
+          supabase.auth.signOut(),
+          new Promise((resolve) => setTimeout(resolve, 2000)) // 2 second timeout
+        ]);
       } catch {
         // Ignore signOut errors - we're just clearing stale data
       }

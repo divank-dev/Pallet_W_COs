@@ -394,7 +394,7 @@ const ProductionFloorPage: React.FC<ProductionFloorPageProps> = ({ orders, onClo
         {activeTab === 'dashboard' && (
           <div className="space-y-6">
             {/* Stats Row */}
-            <div className="grid grid-cols-4 gap-4">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
               <div className="bg-white rounded-xl p-5 border border-slate-200">
                 <div className="flex items-center gap-3 mb-2">
                   <div className="w-3 h-3 bg-green-500 rounded-full animate-pulse" />
@@ -426,7 +426,7 @@ const ProductionFloorPage: React.FC<ProductionFloorPageProps> = ({ orders, onClo
             </div>
 
             {/* Orders Grid */}
-            <div className="grid grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6">
               {/* In Production */}
               <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
                 <div className="bg-green-50 px-4 py-3 border-b border-green-100">
@@ -538,14 +538,14 @@ const ProductionFloorPage: React.FC<ProductionFloorPageProps> = ({ orders, onClo
           <div className="space-y-6">
             {/* Worksheet Header */}
             <div className="bg-white rounded-xl border border-slate-200 p-6">
-              <div className="flex items-center justify-between mb-4">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
                 <div>
-                  <h2 className="text-xl font-bold text-slate-900">Hourly Production Log</h2>
+                  <h2 className="text-lg sm:text-xl font-bold text-slate-900">Hourly Production Log</h2>
                   <p className="text-slate-500 text-sm">Track production output for operators</p>
                 </div>
                 <button
                   onClick={() => setShowAddEntry(true)}
-                  className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-xl font-bold hover:bg-purple-700 transition-colors"
+                  className="flex items-center justify-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-xl font-bold hover:bg-purple-700 transition-colors text-sm sm:text-base"
                 >
                   <Plus size={18} />
                   Log Production
@@ -553,7 +553,7 @@ const ProductionFloorPage: React.FC<ProductionFloorPageProps> = ({ orders, onClo
               </div>
 
               {/* Today's Summary */}
-              <div className="grid grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
                 <div className="bg-green-50 rounded-xl p-4 border border-green-200">
                   <p className="text-sm font-bold text-green-600 uppercase mb-1">Items Decorated Today</p>
                   <p className="text-3xl font-black text-green-700">{todayProductivity.totalDecorated}</p>
@@ -576,7 +576,7 @@ const ProductionFloorPage: React.FC<ProductionFloorPageProps> = ({ orders, onClo
                   <Clock size={18} />
                   Log Production Entry - {new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                 </h3>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Operator Name *</label>
                     <input
@@ -644,7 +644,7 @@ const ProductionFloorPage: React.FC<ProductionFloorPageProps> = ({ orders, onClo
                       />
                     </div>
                   </div>
-                  <div className="col-span-2">
+                  <div className="sm:col-span-2">
                     <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Notes</label>
                     <input
                       type="text"
@@ -683,38 +683,39 @@ const ProductionFloorPage: React.FC<ProductionFloorPageProps> = ({ orders, onClo
               <div className="divide-y divide-slate-100">
                 {todayProductivity.entries.length > 0 ? (
                   todayProductivity.entries.map(entry => (
-                    <div key={entry.id} className="p-4 flex items-center justify-between hover:bg-slate-50">
-                      <div className="flex items-center gap-4">
-                        <div className="w-12 h-12 bg-purple-100 rounded-xl flex items-center justify-center">
-                          <Clock size={20} className="text-purple-600" />
+                    <div key={entry.id} className="p-4 hover:bg-slate-50">
+                      <div className="flex items-start gap-3 sm:gap-4">
+                        <div className="w-10 h-10 sm:w-12 sm:h-12 bg-purple-100 rounded-xl flex items-center justify-center flex-shrink-0">
+                          <Clock size={18} className="text-purple-600" />
                         </div>
-                        <div>
-                          <p className="font-bold text-slate-800">{entry.operatorName}</p>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center justify-between">
+                            <p className="font-bold text-slate-800 truncate">{entry.operatorName}</p>
+                            <button
+                              onClick={() => handleDeleteEntry(entry.id)}
+                              className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors flex-shrink-0"
+                            >
+                              <Trash2 size={16} />
+                            </button>
+                          </div>
                           <p className="text-sm text-slate-500">{entry.orderNumber} • {entry.decorationType}</p>
                           {entry.notes && <p className="text-xs text-slate-400 mt-1">{entry.notes}</p>}
+                          <div className="flex items-center gap-4 mt-2">
+                            <div>
+                              <span className="text-sm font-bold text-green-600">{entry.itemsDecorated}</span>
+                              <span className="text-xs text-slate-400 ml-1">decorated</span>
+                            </div>
+                            <div>
+                              <span className="text-sm font-bold text-blue-600">{entry.itemsPacked}</span>
+                              <span className="text-xs text-slate-400 ml-1">packed</span>
+                            </div>
+                            <div className="ml-auto text-right">
+                              <span className="text-xs font-medium text-slate-500">
+                                {new Date(entry.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                              </span>
+                            </div>
+                          </div>
                         </div>
-                      </div>
-                      <div className="flex items-center gap-6">
-                        <div className="text-center">
-                          <p className="text-lg font-bold text-green-600">{entry.itemsDecorated}</p>
-                          <p className="text-xs text-slate-400">Decorated</p>
-                        </div>
-                        <div className="text-center">
-                          <p className="text-lg font-bold text-blue-600">{entry.itemsPacked}</p>
-                          <p className="text-xs text-slate-400">Packed</p>
-                        </div>
-                        <div className="text-right">
-                          <p className="text-sm font-medium text-slate-600">
-                            {new Date(entry.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                          </p>
-                          <p className="text-xs text-slate-400">Hour {entry.hour}</p>
-                        </div>
-                        <button
-                          onClick={() => handleDeleteEntry(entry.id)}
-                          className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
-                        >
-                          <Trash2 size={16} />
-                        </button>
                       </div>
                     </div>
                   ))
@@ -758,11 +759,11 @@ const ProductionFloorPage: React.FC<ProductionFloorPageProps> = ({ orders, onClo
 
                       return (
                         <div key={date} className="border border-slate-200 rounded-xl overflow-hidden">
-                          <div className="bg-slate-50 px-4 py-3 flex items-center justify-between">
-                            <h4 className="font-bold text-slate-800">
+                          <div className="bg-slate-50 px-4 py-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 sm:gap-4">
+                            <h4 className="font-bold text-slate-800 text-sm sm:text-base">
                               {new Date(date).toLocaleDateString([], { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}
                             </h4>
-                            <div className="flex items-center gap-4 text-sm">
+                            <div className="flex items-center gap-3 sm:gap-4 text-xs sm:text-sm">
                               <span className="text-green-600 font-bold">{totalDecorated} decorated</span>
                               <span className="text-blue-600 font-bold">{totalPacked} packed</span>
                               <span className="text-slate-500">{entries.length} entries</span>
@@ -770,14 +771,14 @@ const ProductionFloorPage: React.FC<ProductionFloorPageProps> = ({ orders, onClo
                           </div>
                           <div className="divide-y divide-slate-100">
                             {entries.map(entry => (
-                              <div key={entry.id} className="p-3 flex items-center justify-between text-sm">
-                                <div className="flex items-center gap-3">
-                                  <span className="text-slate-400 w-16">{entry.hour}:00</span>
-                                  <span className="font-medium text-slate-800">{entry.operatorName}</span>
-                                  <span className="text-slate-500">•</span>
-                                  <span className="text-slate-500">{entry.orderNumber}</span>
+                              <div key={entry.id} className="p-3 flex flex-col sm:flex-row sm:items-center sm:justify-between text-sm gap-1">
+                                <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+                                  <span className="text-slate-400 w-12 sm:w-16 flex-shrink-0">{entry.hour}:00</span>
+                                  <span className="font-medium text-slate-800 truncate">{entry.operatorName}</span>
+                                  <span className="text-slate-500 hidden sm:inline">•</span>
+                                  <span className="text-slate-500 truncate">{entry.orderNumber}</span>
                                 </div>
-                                <div className="flex items-center gap-4">
+                                <div className="flex items-center gap-3 sm:gap-4 pl-14 sm:pl-0 flex-shrink-0">
                                   <span className="text-green-600">{entry.itemsDecorated} dec</span>
                                   <span className="text-blue-600">{entry.itemsPacked} pkg</span>
                                 </div>

@@ -393,7 +393,7 @@ const ReportsPage: React.FC<ReportsPageProps> = ({ orders, onClose }) => {
 
                     return (
                       <div key={stage} className="flex items-center gap-4">
-                        <div className="w-40 text-sm font-medium text-slate-600 truncate">{stage}</div>
+                        <div className="w-24 sm:w-40 text-xs sm:text-sm font-medium text-slate-600 truncate">{stage}</div>
                         <div className="flex-1 h-8 bg-slate-100 rounded-lg overflow-hidden relative">
                           <div
                             className={`h-full ${getStageColor(stage)} transition-all duration-500`}
@@ -409,7 +409,7 @@ const ReportsPage: React.FC<ReportsPageProps> = ({ orders, onClose }) => {
                 </div>
 
                 {/* Stage Details Grid */}
-                <div className="grid grid-cols-5 gap-3 mt-8">
+                <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-5 gap-2 sm:gap-3 mt-8">
                   {ORDER_STAGES.map(stage => {
                     const stageOrders = queueAnalytics.byStage[stage];
                     const stageValue = stageOrders.reduce((sum, o) =>
@@ -440,14 +440,14 @@ const ReportsPage: React.FC<ReportsPageProps> = ({ orders, onClose }) => {
                   </h3>
                   <div className="space-y-2">
                     {queueAnalytics.rushOrders.map(order => (
-                      <div key={order.id} className="flex items-center justify-between bg-white rounded-lg p-3 border border-red-100">
-                        <div>
-                          <p className="font-bold text-slate-900">{order.projectName}</p>
-                          <p className="text-sm text-slate-500">{order.customer} • {order.orderNumber}</p>
+                      <div key={order.id} className="flex flex-col sm:flex-row sm:items-center sm:justify-between bg-white rounded-lg p-3 border border-red-100 gap-2">
+                        <div className="min-w-0">
+                          <p className="font-bold text-slate-900 truncate">{order.projectName}</p>
+                          <p className="text-sm text-slate-500 truncate">{order.customer} • {order.orderNumber}</p>
                         </div>
-                        <div className="text-right">
+                        <div className="flex items-center gap-2 sm:block sm:text-right flex-shrink-0">
                           <span className="px-2 py-1 bg-red-100 text-red-700 text-xs font-bold rounded-full">{order.status}</span>
-                          <p className="text-xs text-slate-400 mt-1">Due: {new Date(order.dueDate).toLocaleDateString()}</p>
+                          <p className="text-xs text-slate-400 sm:mt-1">Due: {new Date(order.dueDate).toLocaleDateString()}</p>
                         </div>
                       </div>
                     ))}
@@ -461,27 +461,27 @@ const ReportsPage: React.FC<ReportsPageProps> = ({ orders, onClose }) => {
           {activeTab === 'performance' && (
             <div className="space-y-8">
               {/* Date Range Picker */}
-              <div className="bg-white rounded-xl border border-slate-200 p-4 flex items-center gap-6">
+              <div className="bg-white rounded-xl border border-slate-200 p-4 flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-6">
                 <div className="flex items-center gap-2">
-                  <Calendar className="text-slate-400" size={20} />
-                  <span className="text-sm font-medium text-slate-600">Date Range:</span>
+                  <Calendar className="text-slate-400 flex-shrink-0" size={20} />
+                  <span className="text-sm font-medium text-slate-600 whitespace-nowrap">Date Range:</span>
                 </div>
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-2 sm:gap-3">
                   <input
                     type="date"
                     value={dateRange.start}
                     onChange={e => setDateRange(prev => ({ ...prev, start: e.target.value }))}
-                    className="px-3 py-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                    className="flex-1 min-w-0 px-2 sm:px-3 py-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none"
                   />
                   <span className="text-slate-400">to</span>
                   <input
                     type="date"
                     value={dateRange.end}
                     onChange={e => setDateRange(prev => ({ ...prev, end: e.target.value }))}
-                    className="px-3 py-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                    className="flex-1 min-w-0 px-2 sm:px-3 py-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none"
                   />
                 </div>
-                <div className="flex gap-2 ml-auto">
+                <div className="flex gap-2 sm:ml-auto">
                   {[
                     { label: '7D', days: 7 },
                     { label: '30D', days: 30 },
@@ -550,7 +550,7 @@ const ReportsPage: React.FC<ReportsPageProps> = ({ orders, onClose }) => {
               </div>
 
               {/* Secondary Metrics */}
-              <div className="grid grid-cols-3 gap-6">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-6">
                 <div className="bg-white rounded-xl p-6 border border-slate-200">
                   <div className="flex items-center justify-between mb-3">
                     <span className="text-sm font-medium text-slate-500">Total Cost</span>
@@ -710,11 +710,11 @@ const ReportsPage: React.FC<ReportsPageProps> = ({ orders, onClose }) => {
               </div>
 
               {/* Summary Footer */}
-              <div className="bg-slate-100 rounded-xl p-6 flex items-center justify-between">
-                <div className="text-sm text-slate-600">
+              <div className="bg-slate-100 rounded-xl p-4 sm:p-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                <div className="text-xs sm:text-sm text-slate-600">
                   Showing data from <span className="font-bold">{new Date(dateRange.start).toLocaleDateString()}</span> to <span className="font-bold">{new Date(dateRange.end).toLocaleDateString()}</span>
                 </div>
-                <div className="text-sm text-slate-500">
+                <div className="text-xs sm:text-sm text-slate-500">
                   {ordersInRange.length} orders • {performanceAnalytics.totalUnits.toLocaleString()} units • ${performanceAnalytics.totalRevenue.toLocaleString()} revenue
                 </div>
               </div>
@@ -725,27 +725,27 @@ const ReportsPage: React.FC<ReportsPageProps> = ({ orders, onClose }) => {
           {activeTab === 'customers' && (
             <div className="space-y-8">
               {/* Date Range Picker */}
-              <div className="bg-white rounded-xl border border-slate-200 p-4 flex items-center gap-6">
+              <div className="bg-white rounded-xl border border-slate-200 p-4 flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-6">
                 <div className="flex items-center gap-2">
-                  <Calendar className="text-slate-400" size={20} />
-                  <span className="text-sm font-medium text-slate-600">Date Range:</span>
+                  <Calendar className="text-slate-400 flex-shrink-0" size={20} />
+                  <span className="text-sm font-medium text-slate-600 whitespace-nowrap">Date Range:</span>
                 </div>
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-2 sm:gap-3">
                   <input
                     type="date"
                     value={dateRange.start}
                     onChange={e => setDateRange(prev => ({ ...prev, start: e.target.value }))}
-                    className="px-3 py-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                    className="flex-1 min-w-0 px-2 sm:px-3 py-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none"
                   />
                   <span className="text-slate-400">to</span>
                   <input
                     type="date"
                     value={dateRange.end}
                     onChange={e => setDateRange(prev => ({ ...prev, end: e.target.value }))}
-                    className="px-3 py-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                    className="flex-1 min-w-0 px-2 sm:px-3 py-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none"
                   />
                 </div>
-                <div className="flex gap-2 ml-auto">
+                <div className="flex gap-2 sm:ml-auto">
                   {[
                     { label: '7D', days: 7 },
                     { label: '30D', days: 30 },
@@ -821,63 +821,106 @@ const ReportsPage: React.FC<ReportsPageProps> = ({ orders, onClose }) => {
                 </h3>
 
                 {customerAnalytics.customers.length > 0 ? (
-                  <div className="overflow-x-auto">
-                    <table className="w-full">
-                      <thead>
-                        <tr className="text-xs text-slate-500 uppercase border-b border-slate-100">
-                          <th className="text-left py-3 px-4">Customer</th>
-                          <th className="text-right py-3 px-4">Total Quoted Value</th>
-                          <th className="text-right py-3 px-4">Total Order Value</th>
-                          <th className="text-right py-3 px-4">Active Quotes/Leads</th>
-                          <th className="text-right py-3 px-4">Dead Leads Value</th>
-                          <th className="text-right py-3 px-4">Total Orders</th>
-                          <th className="text-right py-3 px-4">Total Value</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {customerAnalytics.customers.map((customer, index) => (
-                          <tr key={customer.name} className="border-b border-slate-50 hover:bg-slate-50">
-                            <td className="py-3 px-4">
-                              <div className="flex items-center gap-3">
-                                <div className={`flex items-center justify-center w-8 h-8 rounded-full text-xs font-bold ${
-                                  index === 0 ? 'bg-blue-100 text-blue-700' :
-                                  index === 1 ? 'bg-indigo-100 text-indigo-700' :
-                                  index === 2 ? 'bg-purple-100 text-purple-700' :
-                                  'bg-slate-100 text-slate-600'
-                                }`}>
-                                  {customer.name.charAt(0).toUpperCase()}
-                                </div>
-                                <div>
-                                  <p className="font-bold text-slate-900">{customer.name}</p>
-                                  <p className="text-xs text-slate-400">{customer.totalOrders} {customer.totalOrders === 1 ? 'order' : 'orders'}</p>
-                                </div>
-                              </div>
-                            </td>
-                            <td className="py-3 px-4 text-right">
-                              <p className="font-bold text-indigo-600">${customer.quotedValue.toLocaleString()}</p>
-                            </td>
-                            <td className="py-3 px-4 text-right">
-                              <p className="font-bold text-green-600">${customer.orderValue.toLocaleString()}</p>
-                            </td>
-                            <td className="py-3 px-4 text-right">
-                              <span className="inline-flex items-center justify-center min-w-[2rem] px-2 py-1 bg-blue-100 text-blue-700 text-sm font-bold rounded-full">
-                                {customer.activeQuotes}
-                              </span>
-                            </td>
-                            <td className="py-3 px-4 text-right">
-                              <p className="font-bold text-red-600">${customer.deadLeadsValue.toLocaleString()}</p>
-                            </td>
-                            <td className="py-3 px-4 text-right">
-                              <p className="font-bold text-slate-700">{customer.totalOrders}</p>
-                            </td>
-                            <td className="py-3 px-4 text-right">
-                              <p className="font-black text-slate-900">${customer.totalValue.toLocaleString()}</p>
-                            </td>
+                  <>
+                    {/* Mobile Card Layout */}
+                    <div className="sm:hidden space-y-3">
+                      {customerAnalytics.customers.map((customer, index) => (
+                        <div key={customer.name} className="bg-slate-50 rounded-xl p-4 border border-slate-100">
+                          <div className="flex items-center gap-3 mb-3">
+                            <div className={`flex items-center justify-center w-8 h-8 rounded-full text-xs font-bold ${
+                              index === 0 ? 'bg-blue-100 text-blue-700' :
+                              index === 1 ? 'bg-indigo-100 text-indigo-700' :
+                              index === 2 ? 'bg-purple-100 text-purple-700' :
+                              'bg-slate-100 text-slate-600'
+                            }`}>
+                              {customer.name.charAt(0).toUpperCase()}
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <p className="font-bold text-slate-900 truncate">{customer.name}</p>
+                              <p className="text-xs text-slate-400">{customer.totalOrders} {customer.totalOrders === 1 ? 'order' : 'orders'}</p>
+                            </div>
+                            <p className="font-black text-slate-900 text-lg">${customer.totalValue.toLocaleString()}</p>
+                          </div>
+                          <div className="grid grid-cols-2 gap-2 text-sm">
+                            <div className="flex justify-between">
+                              <span className="text-slate-500">Quoted</span>
+                              <span className="font-bold text-indigo-600">${customer.quotedValue.toLocaleString()}</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-slate-500">Orders</span>
+                              <span className="font-bold text-green-600">${customer.orderValue.toLocaleString()}</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-slate-500">Active Quotes</span>
+                              <span className="font-bold text-blue-700">{customer.activeQuotes}</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-slate-500">Dead Leads</span>
+                              <span className="font-bold text-red-600">${customer.deadLeadsValue.toLocaleString()}</span>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                    {/* Desktop Table Layout */}
+                    <div className="hidden sm:block overflow-x-auto">
+                      <table className="w-full">
+                        <thead>
+                          <tr className="text-xs text-slate-500 uppercase border-b border-slate-100">
+                            <th className="text-left py-3 px-4">Customer</th>
+                            <th className="text-right py-3 px-4">Total Quoted Value</th>
+                            <th className="text-right py-3 px-4">Total Order Value</th>
+                            <th className="text-right py-3 px-4">Active Quotes/Leads</th>
+                            <th className="text-right py-3 px-4">Dead Leads Value</th>
+                            <th className="text-right py-3 px-4">Total Orders</th>
+                            <th className="text-right py-3 px-4">Total Value</th>
                           </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
+                        </thead>
+                        <tbody>
+                          {customerAnalytics.customers.map((customer, index) => (
+                            <tr key={customer.name} className="border-b border-slate-50 hover:bg-slate-50">
+                              <td className="py-3 px-4">
+                                <div className="flex items-center gap-3">
+                                  <div className={`flex items-center justify-center w-8 h-8 rounded-full text-xs font-bold ${
+                                    index === 0 ? 'bg-blue-100 text-blue-700' :
+                                    index === 1 ? 'bg-indigo-100 text-indigo-700' :
+                                    index === 2 ? 'bg-purple-100 text-purple-700' :
+                                    'bg-slate-100 text-slate-600'
+                                  }`}>
+                                    {customer.name.charAt(0).toUpperCase()}
+                                  </div>
+                                  <div>
+                                    <p className="font-bold text-slate-900">{customer.name}</p>
+                                    <p className="text-xs text-slate-400">{customer.totalOrders} {customer.totalOrders === 1 ? 'order' : 'orders'}</p>
+                                  </div>
+                                </div>
+                              </td>
+                              <td className="py-3 px-4 text-right">
+                                <p className="font-bold text-indigo-600">${customer.quotedValue.toLocaleString()}</p>
+                              </td>
+                              <td className="py-3 px-4 text-right">
+                                <p className="font-bold text-green-600">${customer.orderValue.toLocaleString()}</p>
+                              </td>
+                              <td className="py-3 px-4 text-right">
+                                <span className="inline-flex items-center justify-center min-w-[2rem] px-2 py-1 bg-blue-100 text-blue-700 text-sm font-bold rounded-full">
+                                  {customer.activeQuotes}
+                                </span>
+                              </td>
+                              <td className="py-3 px-4 text-right">
+                                <p className="font-bold text-red-600">${customer.deadLeadsValue.toLocaleString()}</p>
+                              </td>
+                              <td className="py-3 px-4 text-right">
+                                <p className="font-bold text-slate-700">{customer.totalOrders}</p>
+                              </td>
+                              <td className="py-3 px-4 text-right">
+                                <p className="font-black text-slate-900">${customer.totalValue.toLocaleString()}</p>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </>
                 ) : (
                   <div className="text-center py-12 text-slate-400">
                     <Users size={48} strokeWidth={1} className="mx-auto mb-4 opacity-50" />
@@ -887,11 +930,11 @@ const ReportsPage: React.FC<ReportsPageProps> = ({ orders, onClose }) => {
               </div>
 
               {/* Summary Footer */}
-              <div className="bg-slate-100 rounded-xl p-6 flex items-center justify-between">
-                <div className="text-sm text-slate-600">
+              <div className="bg-slate-100 rounded-xl p-4 sm:p-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                <div className="text-xs sm:text-sm text-slate-600">
                   Showing data from <span className="font-bold">{new Date(dateRange.start).toLocaleDateString()}</span> to <span className="font-bold">{new Date(dateRange.end).toLocaleDateString()}</span>
                 </div>
-                <div className="text-sm text-slate-500">
+                <div className="text-xs sm:text-sm text-slate-500">
                   {customerAnalytics.totals.totalCustomers} customers • {ordersInRange.length} orders • ${(customerAnalytics.totals.totalQuotedValue + customerAnalytics.totals.totalOrderValue).toLocaleString()} total value
                 </div>
               </div>

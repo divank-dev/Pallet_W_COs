@@ -174,27 +174,27 @@ const FulfillmentTrackingPage: React.FC<FulfillmentTrackingPageProps> = ({ order
                 onClick={() => onSelectOrder(order)}
                 className="bg-white rounded-xl border border-slate-200 p-5 hover:shadow-lg hover:border-blue-300 transition-all cursor-pointer"
               >
-                <div className="flex items-start justify-between mb-4">
-                  <div>
-                    <div className="flex items-center gap-3">
-                      <h3 className="font-bold text-lg text-slate-900">{order.customer}</h3>
+                <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2 mb-4">
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h3 className="font-bold text-base sm:text-lg text-slate-900">{order.customer}</h3>
                       {getStatusBadge(order)}
                       {order.rushOrder && (
                         <span className="px-2 py-1 bg-red-100 text-red-700 text-xs font-bold rounded-full">RUSH</span>
                       )}
                     </div>
-                    <p className="text-sm text-slate-500 mt-1">
+                    <p className="text-sm text-slate-500 mt-1 truncate">
                       {order.orderNumber} • {order.projectName}
                     </p>
                   </div>
-                  <div className="text-right">
+                  <div className="sm:text-right flex-shrink-0">
                     <p className="text-xs text-slate-400 uppercase font-bold">Due Date</p>
                     <p className="font-bold text-slate-800">{order.dueDate || 'Not set'}</p>
                   </div>
                 </div>
 
                 {/* Fulfillment Details */}
-                <div className="grid grid-cols-2 gap-4 pt-4 border-t border-slate-100">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-4 border-t border-slate-100">
                   {/* Left: Shipping/Pickup Info */}
                   <div>
                     {order.fulfillment.method === 'Shipped' ? (

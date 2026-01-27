@@ -1286,7 +1286,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ orders, onClose, onDeleteOr
                     <p className="text-slate-400 text-sm">Schema Version {SCHEMA_DEFINITION.version}</p>
                   </div>
                 </div>
-                <div className="grid grid-cols-5 gap-4">
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4">
                   <div className="bg-white/10 rounded-xl p-4">
                     <p className="text-slate-400 text-xs uppercase">Orders</p>
                     <p className="text-2xl font-black">{dbStats.totalOrders}</p>
@@ -1691,7 +1691,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ orders, onClose, onDeleteOr
                     </div>
 
                     {/* Bottom Row - Enums and Supporting */}
-                    <div className="grid grid-cols-5 gap-3">
+                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
                       {/* OrderStatus Enum */}
                       <div className="bg-slate-600 text-white rounded-xl p-1 shadow-lg">
                         <div className="bg-slate-700 rounded-t-lg px-3 py-1.5 font-bold text-sm">OrderStatus</div>
@@ -1793,9 +1793,9 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ orders, onClose, onDeleteOr
                 <p className="text-slate-500 text-sm mb-6">Complete visual guide to order processing from lead capture to invoice.</p>
 
                 {/* Swimlane Workflow */}
-                <div className="border border-slate-200 rounded-xl overflow-hidden">
+                <div className="border border-slate-200 rounded-xl overflow-x-auto">
                   {/* Swimlane Headers */}
-                  <div className="grid grid-cols-3 bg-slate-100 border-b border-slate-200">
+                  <div className="grid grid-cols-3 bg-slate-100 border-b border-slate-200 min-w-[640px]">
                     <div className="px-4 py-3 border-r border-slate-200">
                       <div className="flex items-center gap-2">
                         <div className="w-3 h-3 rounded-full bg-emerald-500"></div>
@@ -1817,7 +1817,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ orders, onClose, onDeleteOr
                   </div>
 
                   {/* Swimlane Content */}
-                  <div className="grid grid-cols-3 min-h-[500px]">
+                  <div className="grid grid-cols-3 min-h-[500px] min-w-[640px]">
                     {/* Sales Lane */}
                     <div className="border-r border-slate-200 p-4 bg-emerald-50/30">
                       <div className="space-y-4">
@@ -2108,7 +2108,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ orders, onClose, onDeleteOr
                 {/* Decoration Methods */}
                 <div className="mt-6 pt-6 border-t border-slate-200">
                   <h5 className="font-bold text-slate-700 text-sm mb-4">Decoration Methods & Prep Requirements</h5>
-                  <div className="grid grid-cols-3 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                     <div className="bg-purple-50 rounded-xl p-4 border border-purple-200">
                       <div className="flex items-center gap-2 mb-2">
                         <div className="w-3 h-3 rounded-full bg-purple-500"></div>
@@ -2923,7 +2923,7 @@ GET    /api/export/lineitems    # Line items CSV`}</pre>
                 {showAddUser && (
                   <div className="bg-blue-50 border border-blue-200 rounded-xl p-6 mb-4">
                     <h4 className="font-bold text-blue-800 mb-4">Add New User</h4>
-                    <div className="grid grid-cols-3 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                       <div>
                         <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Username *</label>
                         <input

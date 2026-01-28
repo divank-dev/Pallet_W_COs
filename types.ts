@@ -348,13 +348,13 @@ export interface Order {
 
   // Concurrency control
   version: number;
-  archivedAt?: Date;
+  archivedAt?: Date | null;
   isArchived: boolean;
 
   // Closed order tracking
-  closedAt?: Date;
-  closedReason?: string;           // Reason for closing (Completed, Cancelled, etc.)
-  reopenedFrom?: OrderStatus;      // Track what status to return to if reopened
+  closedAt?: Date | null;
+  closedReason?: string | null;           // Reason for closing (Completed, Cancelled, etc.)
+  reopenedFrom?: OrderStatus | null;      // Track what status to return to if reopened
 
   // Change Order tracking (line items are marked as change orders, not separate order entities)
   hasChangeOrders?: boolean;       // True if this order has change order items

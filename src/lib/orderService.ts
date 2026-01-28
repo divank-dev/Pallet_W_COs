@@ -125,10 +125,11 @@ function orderToDb(order: Partial<Order>): any {
   if (order.closeoutChecklist !== undefined) dbOrder.closeout_checklist = order.closeoutChecklist;
   if (order.version !== undefined) dbOrder.version = order.version;
   if (order.isArchived !== undefined) dbOrder.is_archived = order.isArchived;
-  if (order.archivedAt !== undefined) dbOrder.archived_at = order.archivedAt?.toISOString();
-  if (order.closedAt !== undefined) dbOrder.closed_at = order.closedAt?.toISOString();
-  if (order.closedReason !== undefined) dbOrder.closed_reason = order.closedReason;
-  if (order.reopenedFrom !== undefined) dbOrder.reopened_from = order.reopenedFrom;
+  // For nullable fields, explicitly write null to DB when clearing (e.g. on reopen)
+  if (order.archivedAt !== undefined) dbOrder.archived_at = order.archivedAt instanceof Date ? order.archivedAt.toISOString() : null;
+  if (order.closedAt !== undefined) dbOrder.closed_at = order.closedAt instanceof Date ? order.closedAt.toISOString() : null;
+  if (order.closedReason !== undefined) dbOrder.closed_reason = order.closedReason || null;
+  if (order.reopenedFrom !== undefined) dbOrder.reopened_from = order.reopenedFrom || null;
 
   return dbOrder;
 }
@@ -376,18 +377,26 @@ export async function updateOrder(id: string, updates: Partial<Order>): Promise<
   // Handle line items updates if provided
   if (updates.lineItems !== undefined) {
     // Get existing line items
-    const { data: existingItems } = await supabase
+    const { data: existingItems, error: fetchError } = await supabase
       .from('line_items')
       .select('id')
       .eq('order_id', id);
+
+    if (fetchError) {
+      console.error('Error fetching existing line items:', fetchError);
+      throw fetchError;
+    }
 
     const existingIds = new Set((existingItems || []).map(i => i.id));
     const newIds = new Set(updates.lineItems.map(i => i.id));
 
     // Delete removed items
-    const toDelete = [...existingIds].filter(id => !newIds.has(id));
+    const toDelete = [...existingIds].filter(itemId => !newIds.has(itemId));
     if (toDelete.length > 0) {
-      await supabase.from('line_items').delete().in('id', toDelete);
+      const { error: deleteError } = await supabase.from('line_items').delete().in('id', toDelete);
+      if (deleteError) {
+        console.error('Error deleting line items:', deleteError);
+      }
     }
 
     // Upsert items
@@ -395,11 +404,16 @@ export async function updateOrder(id: string, updates: Partial<Order>): Promise<
       const dbItem = lineItemToDb(item, id);
       if (existingIds.has(item.id)) {
         // Update existing
-        await supabase.from('line_items').update(dbItem).eq('id', item.id);
+        const { error: updateError } = await supabase.from('line_items').update(dbItem).eq('id', item.id);
+        if (updateError) {
+          console.error('Error updating line item:', item.id, updateError);
+        }
       } else {
-        // Insert new
-        delete dbItem.id;
-        await supabase.from('line_items').insert({ ...dbItem, id: item.id });
+        // Insert new — use the client-generated UUID directly
+        const { error: insertError } = await supabase.from('line_items').insert(dbItem);
+        if (insertError) {
+          console.error('Error inserting line item:', item.id, insertError);
+        }
       }
     }
   }

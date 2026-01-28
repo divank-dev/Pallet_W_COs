@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useRef } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
 import {
   X, Download, FileText, Shield, Book, Database,
   ChevronRight, Lock, Key, Users, Server, AlertTriangle,
@@ -11,6 +11,11 @@ import { Order, SCHEMA_DEFINITION, User, UserRole } from '../types';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../src/lib/supabase';
 import { findUsersWithMissingAuthLink, repairAllMissingAuthLinks, runAuthDiagnostics, checkSetupStatus } from '../src/lib/authService';
+import {
+  loadCompanySettings, saveCompanySettings as saveCompanySettingsDb,
+  loadVendors, createVendor, updateVendor as updateVendorDb, deleteVendor as deleteVendorDb,
+  type CompanySettings, type Vendor
+} from '../src/lib/settingsService';
 
 interface SettingsPageProps {
   orders: Order[];
@@ -20,35 +25,9 @@ interface SettingsPageProps {
 
 type SettingsTab = 'data' | 'schema' | 'sop' | 'specification' | 'security' | 'company';
 
-// Company settings interface
-interface CompanySettings {
-  companyName: string;
-  contactName: string;
-  email: string;
-  phone: string;
-  address: string;
-  city: string;
-  state: string;
-  zip: string;
-  accountNumber: string;
-  taxId: string;
-  notes: string;
-}
+// Re-export Vendor type for other components
+export type { Vendor };
 
-// Vendor interface
-export interface Vendor {
-  id: string;
-  name: string;
-  accountNumber: string;
-  contactName?: string;
-  phone?: string;
-  email?: string;
-  website?: string;
-  notes?: string;
-}
-
-const COMPANY_SETTINGS_KEY = 'pallet-company-settings';
-const VENDORS_KEY = 'pallet-vendors';
 const MAX_VENDORS = 20;
 
 const DEFAULT_COMPANY_SETTINGS: CompanySettings = {
@@ -119,32 +98,27 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ orders, onClose, onDeleteOr
   const [usersWithMissingAuth, setUsersWithMissingAuth] = useState<Array<{ id: string; username: string; email: string }>>([]);
   const [authDiagnostics, setAuthDiagnostics] = useState<any>(null);
 
-  // Company settings state (with localStorage persistence)
-  const [companySettings, setCompanySettings] = useState<CompanySettings>(() => {
-    const saved = localStorage.getItem(COMPANY_SETTINGS_KEY);
-    if (saved) {
-      try {
-        return JSON.parse(saved);
-      } catch {
-        return DEFAULT_COMPANY_SETTINGS;
-      }
-    }
-    return DEFAULT_COMPANY_SETTINGS;
-  });
+  // Company settings state (Supabase-backed with localStorage cache)
+  const [companySettings, setCompanySettings] = useState<CompanySettings>(DEFAULT_COMPANY_SETTINGS);
   const [companySaveSuccess, setCompanySaveSuccess] = useState(false);
+  const [companyLoading, setCompanyLoading] = useState(true);
 
-  // Vendor management state
-  const [vendors, setVendors] = useState<Vendor[]>(() => {
-    const saved = localStorage.getItem(VENDORS_KEY);
-    if (saved) {
-      try {
-        return JSON.parse(saved);
-      } catch {
-        return [];
-      }
-    }
-    return [];
-  });
+  // Vendor management state (Supabase-backed with localStorage cache)
+  const [vendors, setVendors] = useState<Vendor[]>([]);
+  const [vendorsLoading, setVendorsLoading] = useState(true);
+
+  // Load company settings and vendors from Supabase on mount
+  useEffect(() => {
+    loadCompanySettings()
+      .then(settings => setCompanySettings(settings))
+      .catch(err => console.error('Failed to load company settings:', err))
+      .finally(() => setCompanyLoading(false));
+
+    loadVendors()
+      .then(v => setVendors(v))
+      .catch(err => console.error('Failed to load vendors:', err))
+      .finally(() => setVendorsLoading(false));
+  }, []);
   const [editingVendor, setEditingVendor] = useState<Vendor | null>(null);
   const [showAddVendor, setShowAddVendor] = useState(false);
   const [newVendor, setNewVendor] = useState<Omit<Vendor, 'id'>>({
@@ -158,45 +132,56 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ orders, onClose, onDeleteOr
   });
   const [vendorSaveSuccess, setVendorSaveSuccess] = useState(false);
 
-  // Save company settings to localStorage
-  const saveCompanySettings = () => {
-    localStorage.setItem(COMPANY_SETTINGS_KEY, JSON.stringify(companySettings));
-    setCompanySaveSuccess(true);
-    setTimeout(() => setCompanySaveSuccess(false), 3000);
+  // Save company settings to Supabase
+  const saveCompanySettings = async () => {
+    try {
+      await saveCompanySettingsDb(companySettings);
+      setCompanySaveSuccess(true);
+      setTimeout(() => setCompanySaveSuccess(false), 3000);
+    } catch (err) {
+      console.error('Failed to save company settings:', err);
+    }
   };
 
   // Vendor management functions
-  const saveVendors = (updatedVendors: Vendor[]) => {
-    localStorage.setItem(VENDORS_KEY, JSON.stringify(updatedVendors));
-    setVendors(updatedVendors);
-    setVendorSaveSuccess(true);
-    setTimeout(() => setVendorSaveSuccess(false), 3000);
-  };
-
-  const addVendor = () => {
+  const addVendor = async () => {
     if (!newVendor.name || !newVendor.accountNumber) return;
     if (vendors.length >= MAX_VENDORS) return;
 
-    const vendor: Vendor = {
-      ...newVendor,
-      id: `vendor-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
-    };
-
-    saveVendors([...vendors, vendor]);
-    setNewVendor({ name: '', accountNumber: '', contactName: '', phone: '', email: '', website: '', notes: '' });
-    setShowAddVendor(false);
+    try {
+      const created = await createVendor(newVendor);
+      setVendors(prev => [...prev, created]);
+      setVendorSaveSuccess(true);
+      setTimeout(() => setVendorSaveSuccess(false), 3000);
+      setNewVendor({ name: '', accountNumber: '', contactName: '', phone: '', email: '', website: '', notes: '' });
+      setShowAddVendor(false);
+    } catch (err) {
+      console.error('Failed to add vendor:', err);
+    }
   };
 
-  const updateVendor = () => {
+  const updateVendor = async () => {
     if (!editingVendor) return;
-    const updatedVendors = vendors.map(v => v.id === editingVendor.id ? editingVendor : v);
-    saveVendors(updatedVendors);
-    setEditingVendor(null);
+    try {
+      const updated = await updateVendorDb(editingVendor);
+      setVendors(prev => prev.map(v => v.id === updated.id ? updated : v));
+      setVendorSaveSuccess(true);
+      setTimeout(() => setVendorSaveSuccess(false), 3000);
+      setEditingVendor(null);
+    } catch (err) {
+      console.error('Failed to update vendor:', err);
+    }
   };
 
-  const deleteVendor = (vendorId: string) => {
-    const updatedVendors = vendors.filter(v => v.id !== vendorId);
-    saveVendors(updatedVendors);
+  const deleteVendor = async (vendorId: string) => {
+    try {
+      await deleteVendorDb(vendorId);
+      setVendors(prev => prev.filter(v => v.id !== vendorId));
+      setVendorSaveSuccess(true);
+      setTimeout(() => setVendorSaveSuccess(false), 3000);
+    } catch (err) {
+      console.error('Failed to delete vendor:', err);
+    }
   };
 
   // Handle admin sending password reset email to a user

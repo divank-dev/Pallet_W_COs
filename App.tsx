@@ -274,10 +274,16 @@ const AppContent: React.FC = () => {
     setOrders(prev => prev.map(o => o.id === updated.id ? orderWithAudit : o));
     setSelectedOrder(orderWithAudit);
 
-    // Persist to Supabase
+    // Persist to Supabase and sync state with canonical DB data
     try {
       setIsSaving(true);
-      await updateOrderDb(updated.id, orderWithAudit);
+      const saved = await updateOrderDb(updated.id, orderWithAudit);
+      // Sync state with DB-refreshed order (ensures IDs, computed fields, and
+      // nullable fields like closedAt are accurate after the round-trip)
+      if (saved) {
+        setOrders(prev => prev.map(o => o.id === saved.id ? saved : o));
+        setSelectedOrder(saved);
+      }
     } catch (err) {
       console.error('Failed to save order:', err);
       // Revert on error

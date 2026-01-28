@@ -1,9 +1,10 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { X, Plus, Trash2, Check, AlertCircle, ShoppingCart, FileText, Package, Palette, Layers, Truck, Archive, ClipboardCheck, Printer, Settings, Users, Calendar, DollarSign, Phone, Mail, ThermometerSun, Target, Send, MessageSquare, Image, Link, Clock, Edit3, Eye, RefreshCw, CheckCircle2, XCircle, Upload, Download, File, FileImage, FilePlus, History, ChevronDown, ChevronUp, Paperclip, ArrowLeft, Building2 } from 'lucide-react';
 import { Order, OrderStatus, ViewMode, LineItem, ProductionMethod, STAGE_NUMBER, LeadSource, LeadTemperature, LeadInfo, ArtPlacement, ArtProof, ArtConfirmation, ArtFile, ArtRevision, ArtFileType } from '../types';
 import { calculatePrice } from '../utils/pricing';
 import { DEFAULT_LEAD_INFO, DEFAULT_ART_CONFIRMATION, ORDER_STAGES, PRODUCTION_METHOD_OPTIONS, PRODUCTION_METHOD_LABELS, SIZE_OPTIONS, PLACEMENT_LOCATIONS } from '../constants';
 import { useAuth } from '../contexts/AuthContext';
+import { loadCompanySettings, loadVendors, type CompanySettings, type Vendor } from '../src/lib/settingsService';
 
 interface OrderSlideOverProps {
   order: Order;
@@ -1515,9 +1516,9 @@ const ClosedOrderPanel: React.FC<ClosedOrderPanelProps> = ({ order, onUpdate }) 
     onUpdate({
       ...order,
       status: selectedReopenStage,
-      closedAt: undefined,
-      closedReason: undefined,
-      reopenedFrom: undefined,
+      closedAt: null,
+      closedReason: null,
+      reopenedFrom: null,
       history: [
         ...order.history,
         {
@@ -1705,35 +1706,7 @@ const ClosedOrderPanel: React.FC<ClosedOrderPanelProps> = ({ order, onUpdate }) 
   );
 };
 
-// Company settings interface (matches SettingsPage)
-interface CompanySettings {
-  companyName: string;
-  contactName: string;
-  email: string;
-  phone: string;
-  address: string;
-  city: string;
-  state: string;
-  zip: string;
-  accountNumber: string;
-  taxId: string;
-  notes: string;
-}
-
-const COMPANY_SETTINGS_KEY = 'pallet-company-settings';
-const VENDORS_KEY = 'pallet-vendors';
-
-// Vendor interface (must match SettingsPage)
-interface Vendor {
-  id: string;
-  name: string;
-  accountNumber: string;
-  contactName?: string;
-  phone?: string;
-  email?: string;
-  website?: string;
-  notes?: string;
-}
+// CompanySettings and Vendor types imported from settingsService
 
 const OrderSlideOver: React.FC<OrderSlideOverProps> = ({ order, viewMode, onClose, onUpdate, onDeleteQuote, initialShowAddItem, onAddItemOpened, allOrders = [] }) => {
   const { permissions, currentUser } = useAuth();
@@ -1779,31 +1752,19 @@ const OrderSlideOver: React.FC<OrderSlideOverProps> = ({ order, viewMode, onClos
   const [showDeleteQuoteModal, setShowDeleteQuoteModal] = useState(false);
   const [showPurchaseOrder, setShowPurchaseOrder] = useState(false);
 
-  // Load company settings from localStorage
-  const getCompanySettings = (): CompanySettings => {
-    const saved = localStorage.getItem(COMPANY_SETTINGS_KEY);
-    if (saved) {
-      try {
-        return JSON.parse(saved);
-      } catch {
-        return { companyName: '', contactName: '', email: '', phone: '', address: '', city: '', state: '', zip: '', accountNumber: '', taxId: '', notes: '' };
-      }
-    }
-    return { companyName: '', contactName: '', email: '', phone: '', address: '', city: '', state: '', zip: '', accountNumber: '', taxId: '', notes: '' };
-  };
+  // Company settings and vendors loaded from Supabase (with localStorage cache)
+  const [cachedCompanySettings, setCachedCompanySettings] = useState<CompanySettings>(
+    { companyName: '', contactName: '', email: '', phone: '', address: '', city: '', state: '', zip: '', accountNumber: '', taxId: '', notes: '' }
+  );
+  const [cachedVendors, setCachedVendors] = useState<Vendor[]>([]);
 
-  // Load vendors from localStorage
-  const getVendors = (): Vendor[] => {
-    const saved = localStorage.getItem(VENDORS_KEY);
-    if (saved) {
-      try {
-        return JSON.parse(saved);
-      } catch {
-        return [];
-      }
-    }
-    return [];
-  };
+  useEffect(() => {
+    loadCompanySettings().then(setCachedCompanySettings).catch(() => {});
+    loadVendors().then(setCachedVendors).catch(() => {});
+  }, []);
+
+  const getCompanySettings = (): CompanySettings => cachedCompanySettings;
+  const getVendors = (): Vendor[] => cachedVendors;
 
   // Get selected vendor details
   const getSelectedVendor = (): Vendor | null => {
@@ -1925,7 +1886,7 @@ const OrderSlideOver: React.FC<OrderSlideOverProps> = ({ order, viewMode, onClos
           const unitPrice = calculatePrice(itemData);
 
           const item: LineItem = {
-            id: Math.random().toString(36).substr(2, 9),
+            id: crypto.randomUUID(),
             itemNumber: skuConfig.itemNumber,
             name: skuConfig.name || 'Untitled Item',
             color: colorRow.color,

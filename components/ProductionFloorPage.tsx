@@ -81,7 +81,7 @@ const ProductionFloorPage: React.FC<ProductionFloorPageProps> = ({ orders, onClo
     if (!newEntry.operatorName || !newEntry.orderNumber) return;
 
     const entry: ProductivityEntry = {
-      id: Math.random().toString(36).substr(2, 9),
+      id: crypto.randomUUID(),
       date: today,
       hour: currentHour,
       operatorName: newEntry.operatorName,

@@ -36,3 +36,18 @@ ALTER TABLE vendors ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY "Allow all access to company_settings" ON company_settings FOR ALL USING (true) WITH CHECK (true);
 CREATE POLICY "Allow all access to vendors" ON vendors FOR ALL USING (true) WITH CHECK (true);
+
+-- Grant access to anon and authenticated roles (matches disable_rls pattern)
+GRANT ALL ON company_settings TO anon, authenticated;
+GRANT ALL ON vendors TO anon, authenticated;
+
+-- Auto-update updated_at on modification (matches existing table triggers)
+DROP TRIGGER IF EXISTS company_settings_updated_at ON company_settings;
+CREATE TRIGGER company_settings_updated_at
+  BEFORE UPDATE ON company_settings
+  FOR EACH ROW EXECUTE FUNCTION update_updated_at();
+
+DROP TRIGGER IF EXISTS vendors_updated_at ON vendors;
+CREATE TRIGGER vendors_updated_at
+  BEFORE UPDATE ON vendors
+  FOR EACH ROW EXECUTE FUNCTION update_updated_at();

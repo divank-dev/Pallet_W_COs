@@ -65,14 +65,18 @@ const AppContent: React.FC = () => {
   useEffect(() => {
     let unsubscribe: (() => void) | null = null;
     let retryCount = 0;
-    const MAX_RETRIES = 2;
+    const MAX_RETRIES = 1;
 
     const loadOrders = async () => {
       try {
         if (!isMountedRef.current) return;
         setIsLoading(true);
         setLoadError(null);
-        const data = await fetchOrders();
+        // Hard timeout: if fetchOrders hangs beyond 10s, force reject
+        const data = await Promise.race([
+          fetchOrders(),
+          new Promise<never>((_, reject) => setTimeout(() => reject(new Error('Load timed out')), 10000))
+        ]);
         if (!isMountedRef.current) return;
         setOrders(data);
 
@@ -96,7 +100,7 @@ const AppContent: React.FC = () => {
         if (isAbortError && retryCount < MAX_RETRIES) {
           retryCount++;
           console.log(`Retrying order fetch (attempt ${retryCount}/${MAX_RETRIES})...`);
-          setTimeout(() => { if (isMountedRef.current) loadOrders(); }, 2000 * retryCount);
+          setTimeout(() => { if (isMountedRef.current) loadOrders(); }, 1500);
           return;
         }
 

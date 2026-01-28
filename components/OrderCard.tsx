@@ -57,7 +57,7 @@ const OrderCard: React.FC<OrderCardProps> = ({ order, viewMode, onClick }) => {
       >
         {/* Lead Temperature Badge */}
         <div className="absolute top-0 right-0">
-          <div className={`text-[10px] font-bold px-2 py-0.5 rounded-bl-lg border-l border-b ${getTemperatureColor(order.leadInfo?.temperature)}`}>
+          <div className={`text-[11px] font-bold px-2.5 py-1 rounded-bl-lg border-l border-b ${getTemperatureColor(order.leadInfo?.temperature)}`}>
             <span className="flex items-center gap-1">
               <ThermometerSun size={10} />
               {order.leadInfo?.temperature || 'Unknown'}
@@ -138,12 +138,12 @@ const OrderCard: React.FC<OrderCardProps> = ({ order, viewMode, onClick }) => {
       {/* Badges - positioned top-right */}
       <div className="absolute top-0 right-0 flex gap-0">
         {order.rushOrder && (
-          <div className="bg-red-500 text-white text-[10px] font-bold px-2 py-0.5 flex items-center gap-1">
+          <div className="bg-red-500 text-white text-[11px] font-bold px-2.5 py-1 flex items-center gap-1">
             <Zap size={10} /> RUSH
           </div>
         )}
         {isArtPendingWarning && (
-          <div className="bg-orange-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-bl-lg flex items-center gap-1">
+          <div className="bg-orange-500 text-white text-[11px] font-bold px-2.5 py-1 rounded-bl-lg flex items-center gap-1">
             <AlertCircle size={10} /> ART PENDING
           </div>
         )}

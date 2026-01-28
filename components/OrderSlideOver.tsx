@@ -2,7 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { X, Plus, Trash2, Check, AlertCircle, ShoppingCart, FileText, Package, Palette, Layers, Truck, Archive, ClipboardCheck, Printer, Settings, Users, Calendar, DollarSign, Phone, Mail, ThermometerSun, Target, Send, MessageSquare, Image, Link, Clock, Edit3, Eye, RefreshCw, CheckCircle2, XCircle, Upload, Download, File, FileImage, FilePlus, History, ChevronDown, ChevronUp, Paperclip, ArrowLeft, Building2 } from 'lucide-react';
 import { Order, OrderStatus, ViewMode, LineItem, ProductionMethod, STAGE_NUMBER, LeadSource, LeadTemperature, LeadInfo, ArtPlacement, ArtProof, ArtConfirmation, ArtFile, ArtRevision, ArtFileType } from '../types';
 import { calculatePrice } from '../utils/pricing';
-import { DEFAULT_LEAD_INFO, DEFAULT_ART_CONFIRMATION, ORDER_STAGES, PRODUCTION_METHOD_OPTIONS, SIZE_OPTIONS, PLACEMENT_LOCATIONS } from '../constants';
+import { DEFAULT_LEAD_INFO, DEFAULT_ART_CONFIRMATION, ORDER_STAGES, PRODUCTION_METHOD_OPTIONS, PRODUCTION_METHOD_LABELS, SIZE_OPTIONS, PLACEMENT_LOCATIONS } from '../constants';
 import { useAuth } from '../contexts/AuthContext';
 
 interface OrderSlideOverProps {
@@ -799,7 +799,7 @@ const ArtConfirmationPanel: React.FC<ArtConfirmationPanelProps> = ({ order, onUp
         <h4 className="font-bold text-slate-700 text-sm flex items-center gap-2">
           <Image size={16} /> Artwork Files
         </h4>
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           <div>
             <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Original Artwork URL</label>
             <input
@@ -855,7 +855,7 @@ const ArtConfirmationPanel: React.FC<ArtConfirmationPanelProps> = ({ order, onUp
         {showAddPlacement && (
           <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 space-y-3">
             <h5 className="font-bold text-blue-800 text-sm">New Art Placement</h5>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               <div className="col-span-2">
                 <label className="block text-xs font-bold text-slate-500 mb-1">Location *</label>
                 <select
@@ -1280,7 +1280,7 @@ const ArtConfirmationPanel: React.FC<ArtConfirmationPanelProps> = ({ order, onUp
         {showClientFileUpload && (
           <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 space-y-3">
             <h5 className="font-bold text-blue-800 text-sm">Upload Client File</h5>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               <div className="col-span-2">
                 <label className="block text-xs font-bold text-slate-500 mb-1">File Name *</label>
                 <input
@@ -1562,7 +1562,7 @@ const ClosedOrderPanel: React.FC<ClosedOrderPanelProps> = ({ order, onUpdate }) 
           <h4 className="font-bold text-slate-700">Order Summary</h4>
         </div>
         <div className="p-4 space-y-4">
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="bg-slate-50 rounded-lg p-3">
               <p className="text-xs text-slate-500 font-bold uppercase">Total Items</p>
               <p className="text-xl font-black text-slate-900">{totalItems}</p>
@@ -1573,7 +1573,7 @@ const ClosedOrderPanel: React.FC<ClosedOrderPanelProps> = ({ order, onUpdate }) 
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4 text-sm">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
             <div>
               <p className="text-slate-500">Created</p>
               <p className="font-bold text-slate-800">
@@ -2229,7 +2229,7 @@ const OrderSlideOver: React.FC<OrderSlideOverProps> = ({ order, viewMode, onClos
             </div>
 
             {/* Lead Details Grid */}
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {/* Source */}
               <div className="space-y-2">
                 <label className="text-xs uppercase text-slate-500 font-bold">Lead Source</label>
@@ -2576,7 +2576,7 @@ const OrderSlideOver: React.FC<OrderSlideOverProps> = ({ order, viewMode, onClos
             {/* Line Items Table */}
             <div className="border border-slate-200 rounded-xl overflow-hidden">
               <div className="overflow-x-auto">
-                <table className="w-full text-left min-w-[650px]">
+                <table className="w-full text-left">
                   <thead className="bg-slate-50 text-slate-500 text-xs uppercase font-bold">
                     <tr>
                       <th className="px-3 py-3">Item #</th>
@@ -3038,7 +3038,7 @@ const OrderSlideOver: React.FC<OrderSlideOverProps> = ({ order, viewMode, onClos
               </button>
             </div>
 
-            <div className="border border-slate-200 rounded-xl overflow-hidden">
+            <div className="border border-slate-200 rounded-xl overflow-hidden overflow-x-auto">
               <table className="w-full text-left">
                 <thead className="bg-slate-50 text-slate-500 text-xs uppercase font-bold">
                   <tr>
@@ -3066,7 +3066,7 @@ const OrderSlideOver: React.FC<OrderSlideOverProps> = ({ order, viewMode, onClos
                       <td className="px-3 py-3 text-center">
                         <button
                           onClick={() => toggleItemOrdered(item.id)}
-                          className={`w-6 h-6 rounded-full flex items-center justify-center border-2 transition-colors mx-auto ${
+                          className={`w-8 h-8 rounded-full flex items-center justify-center border-2 transition-colors mx-auto ${
                             item.ordered ? 'bg-green-500 border-green-500 text-white' : 'border-slate-300 hover:border-green-400'
                           }`}
                         >
@@ -3102,7 +3102,7 @@ const OrderSlideOver: React.FC<OrderSlideOverProps> = ({ order, viewMode, onClos
                           <td className="px-3 py-3 text-center">
                             <button
                               onClick={() => toggleItemOrdered(item.id)}
-                              className={`w-6 h-6 rounded-full flex items-center justify-center border-2 transition-colors mx-auto ${
+                              className={`w-8 h-8 rounded-full flex items-center justify-center border-2 transition-colors mx-auto ${
                                 item.ordered ? 'bg-green-500 border-green-500 text-white' : 'border-slate-300 hover:border-green-400'
                               }`}
                             >
@@ -3188,7 +3188,7 @@ const OrderSlideOver: React.FC<OrderSlideOverProps> = ({ order, viewMode, onClos
                       <p className="text-xs text-slate-500">Required for DTF items</p>
                     </div>
                   </div>
-                  <div className={`w-6 h-6 rounded-full flex items-center justify-center border-2 transition-colors ${
+                  <div className={`w-8 h-8 rounded-full flex items-center justify-center border-2 transition-colors ${
                     order.prepStatus.gangSheetCreated ? 'bg-green-500 border-green-500 text-white' : 'border-slate-300'
                   }`}>
                     {order.prepStatus.gangSheetCreated && <Check size={14} strokeWidth={4} />}
@@ -3211,7 +3211,7 @@ const OrderSlideOver: React.FC<OrderSlideOverProps> = ({ order, viewMode, onClos
                       <p className="text-xs text-slate-500">Required for Embroidery items</p>
                     </div>
                   </div>
-                  <div className={`w-6 h-6 rounded-full flex items-center justify-center border-2 transition-colors ${
+                  <div className={`w-8 h-8 rounded-full flex items-center justify-center border-2 transition-colors ${
                     order.prepStatus.artworkDigitized ? 'bg-green-500 border-green-500 text-white' : 'border-slate-300'
                   }`}>
                     {order.prepStatus.artworkDigitized && <Check size={14} strokeWidth={4} />}
@@ -3234,7 +3234,7 @@ const OrderSlideOver: React.FC<OrderSlideOverProps> = ({ order, viewMode, onClos
                       <p className="text-xs text-slate-500">Required for Screen Print items</p>
                     </div>
                   </div>
-                  <div className={`w-6 h-6 rounded-full flex items-center justify-center border-2 transition-colors ${
+                  <div className={`w-8 h-8 rounded-full flex items-center justify-center border-2 transition-colors ${
                     order.prepStatus.screensBurned ? 'bg-green-500 border-green-500 text-white' : 'border-slate-300'
                   }`}>
                     {order.prepStatus.screensBurned && <Check size={14} strokeWidth={4} />}
@@ -3248,6 +3248,105 @@ const OrderSlideOver: React.FC<OrderSlideOverProps> = ({ order, viewMode, onClos
                 </div>
               )}
             </div>
+
+            {/* Line Items Summary */}
+            {order.lineItems && order.lineItems.length > 0 && (
+              <>
+                <h3 className="text-lg font-bold flex items-center gap-2">
+                  <Package size={20} className="text-slate-400" />
+                  Order Items
+                </h3>
+
+                {lineItemsData.hasChangeOrders && (
+                  <div className="bg-orange-50 border-2 border-orange-200 rounded-xl p-4">
+                    <div className="flex items-start gap-3">
+                      <AlertCircle size={20} className="text-orange-600 flex-shrink-0 mt-0.5" />
+                      <div>
+                        <p className="font-bold text-orange-900">Change Order Items Included</p>
+                        <p className="text-sm text-orange-700 mt-1">
+                          This order includes {lineItemsData.changeOrders.length} change order item{lineItemsData.changeOrders.length !== 1 ? 's' : ''}.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                <div className="border border-slate-200 rounded-xl overflow-hidden overflow-x-auto">
+                  <table className="w-full text-left">
+                    <thead className="bg-slate-50 text-slate-500 text-xs uppercase font-bold">
+                      <tr>
+                        <th className="px-3 py-3">Item # / Description</th>
+                        <th className="px-3 py-3">Color / Size</th>
+                        <th className="px-3 py-3 text-center">Qty</th>
+                        <th className="px-3 py-3">Decoration</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {lineItemsData.original.map(item => (
+                        <tr key={item.id} className="text-sm hover:bg-slate-50">
+                          <td className="px-3 py-3">
+                            <p className="font-bold text-slate-900">{item.itemNumber}</p>
+                            <p className="text-xs text-slate-600">{item.name}</p>
+                          </td>
+                          <td className="px-3 py-3">
+                            <p className="text-slate-700">{item.color}</p>
+                            <p className="text-xs text-slate-500">{item.size}</p>
+                          </td>
+                          <td className="px-3 py-3 text-center">
+                            <span className="font-bold text-slate-900">{item.qty}</span>
+                          </td>
+                          <td className="px-3 py-3">
+                            <span className="text-xs font-semibold px-2 py-1 rounded-full bg-slate-100 text-slate-700">
+                              {PRODUCTION_METHOD_LABELS[item.decorationType] || item.decorationType}
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+
+                      {lineItemsData.changeOrders.length > 0 && (
+                        <>
+                          <tr className="bg-orange-50">
+                            <td colSpan={4} className="px-3 py-2">
+                              <span className="text-xs font-bold text-orange-900 uppercase">Change Order Items</span>
+                            </td>
+                          </tr>
+                          {lineItemsData.changeOrders.map(item => (
+                            <tr key={item.id} className="text-sm bg-orange-50 hover:bg-orange-100">
+                              <td className="px-3 py-3">
+                                <p className="font-bold text-slate-900">{item.itemNumber}</p>
+                                <p className="text-xs text-slate-600">{item.name}</p>
+                              </td>
+                              <td className="px-3 py-3">
+                                <p className="text-slate-700">{item.color}</p>
+                                <p className="text-xs text-slate-500">{item.size}</p>
+                              </td>
+                              <td className="px-3 py-3 text-center">
+                                <span className={`font-bold ${item.qty < 0 ? 'text-red-600' : 'text-slate-900'}`}>
+                                  {item.qty > 0 ? '+' : ''}{item.qty}
+                                </span>
+                              </td>
+                              <td className="px-3 py-3">
+                                <span className="text-xs font-semibold px-2 py-1 rounded-full bg-slate-100 text-slate-700">
+                                  {PRODUCTION_METHOD_LABELS[item.decorationType] || item.decorationType}
+                                </span>
+                              </td>
+                            </tr>
+                          ))}
+                        </>
+                      )}
+
+                      <tr className="bg-slate-100 font-bold text-slate-900">
+                        <td colSpan={2} className="px-3 py-3 text-right">TOTAL:</td>
+                        <td className="px-3 py-3 text-center text-blue-700">
+                          {lineItemsData.netTotals.qty}
+                        </td>
+                        <td className="px-3 py-3"></td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </>
+            )}
 
             <div className="flex gap-3">
               {previousStage && (
@@ -3303,7 +3402,7 @@ const OrderSlideOver: React.FC<OrderSlideOverProps> = ({ order, viewMode, onClos
               </button>
             </div>
 
-            <div className="border border-slate-200 rounded-xl overflow-hidden">
+            <div className="border border-slate-200 rounded-xl overflow-hidden overflow-x-auto">
               <table className="w-full text-left">
                 <thead className="bg-slate-50 text-slate-500 text-xs uppercase font-bold">
                   <tr>
@@ -3331,7 +3430,7 @@ const OrderSlideOver: React.FC<OrderSlideOverProps> = ({ order, viewMode, onClos
                       <td className="px-3 py-3 text-center">
                         <button
                           onClick={() => toggleItemReceived(item.id)}
-                          className={`w-6 h-6 rounded-full flex items-center justify-center border-2 transition-colors mx-auto ${
+                          className={`w-8 h-8 rounded-full flex items-center justify-center border-2 transition-colors mx-auto ${
                             item.received ? 'bg-green-500 border-green-500 text-white' : 'border-slate-300 hover:border-green-400'
                           }`}
                         >
@@ -3367,7 +3466,7 @@ const OrderSlideOver: React.FC<OrderSlideOverProps> = ({ order, viewMode, onClos
                           <td className="px-3 py-3 text-center">
                             <button
                               onClick={() => toggleItemReceived(item.id)}
-                              className={`w-6 h-6 rounded-full flex items-center justify-center border-2 transition-colors mx-auto ${
+                              className={`w-8 h-8 rounded-full flex items-center justify-center border-2 transition-colors mx-auto ${
                                 item.received ? 'bg-green-500 border-green-500 text-white' : 'border-slate-300 hover:border-green-400'
                               }`}
                             >
@@ -3451,7 +3550,7 @@ const OrderSlideOver: React.FC<OrderSlideOverProps> = ({ order, viewMode, onClos
                 </button>
               </div>
 
-              <div className="border border-slate-200 rounded-xl overflow-hidden">
+              <div className="border border-slate-200 rounded-xl overflow-hidden overflow-x-auto">
                 <table className="w-full text-left">
                   <thead className="bg-slate-50 text-slate-500 text-xs uppercase font-bold">
                     <tr>
@@ -3630,7 +3729,7 @@ const OrderSlideOver: React.FC<OrderSlideOverProps> = ({ order, viewMode, onClos
                     <p className="text-xs text-slate-500">Order will be shipped to customer</p>
                   </div>
                 </div>
-                <div className={`w-6 h-6 rounded-full flex items-center justify-center border-2 transition-colors ${
+                <div className={`w-8 h-8 rounded-full flex items-center justify-center border-2 transition-colors ${
                   order.fulfillment.shippingLabelPrinted ? 'bg-green-500 border-green-500 text-white' : 'border-slate-300'
                 }`}>
                   {order.fulfillment.shippingLabelPrinted && <Check size={14} strokeWidth={4} />}
@@ -3657,13 +3756,100 @@ const OrderSlideOver: React.FC<OrderSlideOverProps> = ({ order, viewMode, onClos
                     <p className="text-xs text-slate-500">Customer collected order in person</p>
                   </div>
                 </div>
-                <div className={`w-6 h-6 rounded-full flex items-center justify-center border-2 transition-colors ${
+                <div className={`w-8 h-8 rounded-full flex items-center justify-center border-2 transition-colors ${
                   order.fulfillment.customerPickedUp ? 'bg-green-500 border-green-500 text-white' : 'border-slate-300'
                 }`}>
                   {order.fulfillment.customerPickedUp && <Check size={14} strokeWidth={4} />}
                 </div>
               </div>
             </div>
+
+            {/* Line Items Summary */}
+            {order.lineItems && order.lineItems.length > 0 && (
+              <>
+                <h3 className="text-lg font-bold flex items-center gap-2">
+                  <Package size={20} className="text-slate-400" />
+                  Items in This Order
+                </h3>
+
+                {lineItemsData.hasChangeOrders && (
+                  <div className="bg-orange-50 border-2 border-orange-200 rounded-xl p-4">
+                    <div className="flex items-start gap-3">
+                      <AlertCircle size={20} className="text-orange-600 flex-shrink-0 mt-0.5" />
+                      <div>
+                        <p className="font-bold text-orange-900">Change Order Items Included</p>
+                        <p className="text-sm text-orange-700 mt-1">
+                          This order includes {lineItemsData.changeOrders.length} change order item{lineItemsData.changeOrders.length !== 1 ? 's' : ''}.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                <div className="border border-slate-200 rounded-xl overflow-hidden overflow-x-auto">
+                  <table className="w-full text-left">
+                    <thead className="bg-slate-50 text-slate-500 text-xs uppercase font-bold">
+                      <tr>
+                        <th className="px-3 py-3">Item # / Description</th>
+                        <th className="px-3 py-3">Color / Size</th>
+                        <th className="px-3 py-3 text-center">Qty</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {lineItemsData.original.map(item => (
+                        <tr key={item.id} className="text-sm hover:bg-slate-50">
+                          <td className="px-3 py-3">
+                            <p className="font-bold text-slate-900">{item.itemNumber}</p>
+                            <p className="text-xs text-slate-600">{item.name}</p>
+                          </td>
+                          <td className="px-3 py-3">
+                            <p className="text-slate-700">{item.color}</p>
+                            <p className="text-xs text-slate-500">{item.size}</p>
+                          </td>
+                          <td className="px-3 py-3 text-center">
+                            <span className="font-bold text-slate-900">{item.qty}</span>
+                          </td>
+                        </tr>
+                      ))}
+
+                      {lineItemsData.changeOrders.length > 0 && (
+                        <>
+                          <tr className="bg-orange-50">
+                            <td colSpan={3} className="px-3 py-2">
+                              <span className="text-xs font-bold text-orange-900 uppercase">Change Order Items</span>
+                            </td>
+                          </tr>
+                          {lineItemsData.changeOrders.map(item => (
+                            <tr key={item.id} className="text-sm bg-orange-50 hover:bg-orange-100">
+                              <td className="px-3 py-3">
+                                <p className="font-bold text-slate-900">{item.itemNumber}</p>
+                                <p className="text-xs text-slate-600">{item.name}</p>
+                              </td>
+                              <td className="px-3 py-3">
+                                <p className="text-slate-700">{item.color}</p>
+                                <p className="text-xs text-slate-500">{item.size}</p>
+                              </td>
+                              <td className="px-3 py-3 text-center">
+                                <span className={`font-bold ${item.qty < 0 ? 'text-red-600' : 'text-slate-900'}`}>
+                                  {item.qty > 0 ? '+' : ''}{item.qty}
+                                </span>
+                              </td>
+                            </tr>
+                          ))}
+                        </>
+                      )}
+
+                      <tr className="bg-slate-100 font-bold text-slate-900">
+                        <td colSpan={2} className="px-3 py-3 text-right">TOTAL:</td>
+                        <td className="px-3 py-3 text-center text-blue-700">
+                          {lineItemsData.netTotals.qty}
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </>
+            )}
 
             <div className="flex gap-3">
               {previousStage && (
@@ -3703,7 +3889,7 @@ const OrderSlideOver: React.FC<OrderSlideOverProps> = ({ order, viewMode, onClos
 
             {/* Invoice Details */}
             <div className="bg-slate-50 rounded-xl p-4 space-y-4">
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Invoice Number</label>
                   <input
@@ -3747,7 +3933,7 @@ const OrderSlideOver: React.FC<OrderSlideOverProps> = ({ order, viewMode, onClos
                 className="flex items-center justify-between p-4 bg-slate-50 rounded-xl border border-slate-100 cursor-pointer hover:bg-slate-100 transition-colors"
               >
                 <p className="font-bold text-slate-900">Invoice Created</p>
-                <div className={`w-6 h-6 rounded-full flex items-center justify-center border-2 transition-colors ${
+                <div className={`w-8 h-8 rounded-full flex items-center justify-center border-2 transition-colors ${
                   order.invoiceStatus?.invoiceCreated ? 'bg-green-500 border-green-500 text-white' : 'border-slate-300'
                 }`}>
                   {order.invoiceStatus?.invoiceCreated && <Check size={14} strokeWidth={4} />}
@@ -3771,7 +3957,7 @@ const OrderSlideOver: React.FC<OrderSlideOverProps> = ({ order, viewMode, onClos
                     <p className="text-xs text-slate-500">Sent: {new Date(order.invoiceStatus.invoiceSentAt).toLocaleString()}</p>
                   )}
                 </div>
-                <div className={`w-6 h-6 rounded-full flex items-center justify-center border-2 transition-colors ${
+                <div className={`w-8 h-8 rounded-full flex items-center justify-center border-2 transition-colors ${
                   order.invoiceStatus?.invoiceSent ? 'bg-green-500 border-green-500 text-white' : 'border-slate-300'
                 }`}>
                   {order.invoiceStatus?.invoiceSent && <Check size={14} strokeWidth={4} />}
@@ -3807,7 +3993,7 @@ const OrderSlideOver: React.FC<OrderSlideOverProps> = ({ order, viewMode, onClos
                     <p className="text-xs text-green-600">Received: {new Date(order.invoiceStatus.paymentReceivedAt).toLocaleString()}</p>
                   )}
                 </div>
-                <div className={`w-6 h-6 rounded-full flex items-center justify-center border-2 transition-colors ${
+                <div className={`w-8 h-8 rounded-full flex items-center justify-center border-2 transition-colors ${
                   order.invoiceStatus?.paymentReceived ? 'bg-green-500 border-green-500 text-white' : 'border-amber-400'
                 }`}>
                   {order.invoiceStatus?.paymentReceived && <Check size={14} strokeWidth={4} />}
@@ -3815,7 +4001,7 @@ const OrderSlideOver: React.FC<OrderSlideOverProps> = ({ order, viewMode, onClos
               </div>
 
               {order.invoiceStatus?.paymentReceived && (
-                <div className="mt-3 grid grid-cols-2 gap-3">
+                <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3">
                   <div>
                     <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Payment Method</label>
                     <select
@@ -3850,6 +4036,111 @@ const OrderSlideOver: React.FC<OrderSlideOverProps> = ({ order, viewMode, onClos
                 </div>
               )}
             </div>
+
+            {/* Line Items Breakdown */}
+            {order.lineItems && order.lineItems.length > 0 && (
+              <>
+                <h3 className="text-lg font-bold flex items-center gap-2">
+                  <ClipboardCheck size={20} className="text-slate-400" />
+                  Line Items
+                </h3>
+
+                {lineItemsData.hasChangeOrders && (
+                  <div className="bg-orange-50 border-2 border-orange-200 rounded-xl p-4">
+                    <div className="flex items-start gap-3">
+                      <AlertCircle size={20} className="text-orange-600 flex-shrink-0 mt-0.5" />
+                      <div>
+                        <p className="font-bold text-orange-900">Change Order Items Included</p>
+                        <p className="text-sm text-orange-700 mt-1">
+                          This order includes {lineItemsData.changeOrders.length} change order item{lineItemsData.changeOrders.length !== 1 ? 's' : ''}.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                <div className="border border-slate-200 rounded-xl overflow-hidden overflow-x-auto">
+                  <table className="w-full text-left">
+                    <thead className="bg-slate-50 text-slate-500 text-xs uppercase font-bold">
+                      <tr>
+                        <th className="px-3 py-3">Item # / Description</th>
+                        <th className="px-3 py-3">Color / Size</th>
+                        <th className="px-3 py-3 text-center">Qty</th>
+                        <th className="px-3 py-3 text-right">Unit Price</th>
+                        <th className="px-3 py-3 text-right">Total</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {lineItemsData.original.map(item => (
+                        <tr key={item.id} className="text-sm hover:bg-slate-50">
+                          <td className="px-3 py-3">
+                            <p className="font-bold text-slate-900">{item.itemNumber}</p>
+                            <p className="text-xs text-slate-600">{item.name}</p>
+                          </td>
+                          <td className="px-3 py-3">
+                            <p className="text-slate-700">{item.color}</p>
+                            <p className="text-xs text-slate-500">{item.size}</p>
+                          </td>
+                          <td className="px-3 py-3 text-center">
+                            <span className="font-bold text-slate-900">{item.qty}</span>
+                          </td>
+                          <td className="px-3 py-3 text-right text-slate-700">
+                            ${(item.price || 0).toFixed(2)}
+                          </td>
+                          <td className="px-3 py-3 text-right font-bold text-slate-900">
+                            ${((item.price || 0) * item.qty).toFixed(2)}
+                          </td>
+                        </tr>
+                      ))}
+
+                      {lineItemsData.changeOrders.length > 0 && (
+                        <>
+                          <tr className="bg-orange-50">
+                            <td colSpan={5} className="px-3 py-2">
+                              <span className="text-xs font-bold text-orange-900 uppercase">Change Order Items</span>
+                            </td>
+                          </tr>
+                          {lineItemsData.changeOrders.map(item => (
+                            <tr key={item.id} className="text-sm bg-orange-50 hover:bg-orange-100">
+                              <td className="px-3 py-3">
+                                <p className="font-bold text-slate-900">{item.itemNumber}</p>
+                                <p className="text-xs text-slate-600">{item.name}</p>
+                              </td>
+                              <td className="px-3 py-3">
+                                <p className="text-slate-700">{item.color}</p>
+                                <p className="text-xs text-slate-500">{item.size}</p>
+                              </td>
+                              <td className="px-3 py-3 text-center">
+                                <span className={`font-bold ${item.qty < 0 ? 'text-red-600' : 'text-slate-900'}`}>
+                                  {item.qty > 0 ? '+' : ''}{item.qty}
+                                </span>
+                              </td>
+                              <td className="px-3 py-3 text-right text-slate-700">
+                                ${(item.price || 0).toFixed(2)}
+                              </td>
+                              <td className="px-3 py-3 text-right font-bold text-slate-900">
+                                ${((item.price || 0) * item.qty).toFixed(2)}
+                              </td>
+                            </tr>
+                          ))}
+                        </>
+                      )}
+
+                      <tr className="bg-slate-100 font-bold text-slate-900">
+                        <td colSpan={2} className="px-3 py-3 text-right">TOTAL:</td>
+                        <td className="px-3 py-3 text-center text-blue-700">
+                          {lineItemsData.netTotals.qty}
+                        </td>
+                        <td className="px-3 py-3"></td>
+                        <td className="px-3 py-3 text-right text-green-700">
+                          ${grandTotal.toFixed(2)}
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </>
+            )}
 
             <div className="flex gap-3">
               {previousStage && (
@@ -3922,7 +4213,7 @@ const OrderSlideOver: React.FC<OrderSlideOverProps> = ({ order, viewMode, onClos
                 className="flex items-center justify-between p-4 bg-slate-50 rounded-xl border border-slate-100 cursor-pointer hover:bg-slate-100 transition-colors"
               >
                 <p className="font-bold text-slate-900">Project Files Saved to Customer Folder</p>
-                <div className={`w-6 h-6 rounded-full flex items-center justify-center border-2 transition-colors ${
+                <div className={`w-8 h-8 rounded-full flex items-center justify-center border-2 transition-colors ${
                   order.closeoutChecklist.filesSaved ? 'bg-green-500 border-green-500 text-white' : 'border-slate-300'
                 }`}>
                   {order.closeoutChecklist.filesSaved && <Check size={14} strokeWidth={4} />}
@@ -3937,7 +4228,7 @@ const OrderSlideOver: React.FC<OrderSlideOverProps> = ({ order, viewMode, onClos
                 className="flex items-center justify-between p-4 bg-slate-50 rounded-xl border border-slate-100 cursor-pointer hover:bg-slate-100 transition-colors"
               >
                 <p className="font-bold text-slate-900">Canva Proof Archived</p>
-                <div className={`w-6 h-6 rounded-full flex items-center justify-center border-2 transition-colors ${
+                <div className={`w-8 h-8 rounded-full flex items-center justify-center border-2 transition-colors ${
                   order.closeoutChecklist.canvaArchived ? 'bg-green-500 border-green-500 text-white' : 'border-slate-300'
                 }`}>
                   {order.closeoutChecklist.canvaArchived && <Check size={14} strokeWidth={4} />}
@@ -3952,7 +4243,7 @@ const OrderSlideOver: React.FC<OrderSlideOverProps> = ({ order, viewMode, onClos
                 className="flex items-center justify-between p-4 bg-slate-50 rounded-xl border border-slate-100 cursor-pointer hover:bg-slate-100 transition-colors"
               >
                 <p className="font-bold text-slate-900">Order Summary Uploaded</p>
-                <div className={`w-6 h-6 rounded-full flex items-center justify-center border-2 transition-colors ${
+                <div className={`w-8 h-8 rounded-full flex items-center justify-center border-2 transition-colors ${
                   order.closeoutChecklist.summaryUploaded ? 'bg-green-500 border-green-500 text-white' : 'border-slate-300'
                 }`}>
                   {order.closeoutChecklist.summaryUploaded && <Check size={14} strokeWidth={4} />}
@@ -4045,7 +4336,7 @@ const OrderSlideOver: React.FC<OrderSlideOverProps> = ({ order, viewMode, onClos
                     )}
 
                     {/* Company & Order Info */}
-                    <div className="grid grid-cols-2 gap-8">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                       <div>
                         <h4 className="text-xs font-bold text-slate-500 uppercase mb-2">Ship To:</h4>
                         <div className="text-sm text-slate-700">
@@ -4095,7 +4386,7 @@ const OrderSlideOver: React.FC<OrderSlideOverProps> = ({ order, viewMode, onClos
                     </div>
 
                     {/* Line Items Table */}
-                    <div className="border border-slate-200 rounded-lg overflow-hidden">
+                    <div className="border border-slate-200 rounded-lg overflow-hidden overflow-x-auto">
                       <table className="w-full text-sm">
                         <thead className="bg-slate-800 text-white">
                           <tr>
@@ -4180,7 +4471,7 @@ const OrderSlideOver: React.FC<OrderSlideOverProps> = ({ order, viewMode, onClos
                   Product & Decoration Setup
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-xs font-bold text-slate-500 uppercase mb-2">
                       Item Number / SKU *
@@ -4258,7 +4549,7 @@ const OrderSlideOver: React.FC<OrderSlideOverProps> = ({ order, viewMode, onClos
                 </div>
 
                 {skuConfig.decorationType === 'ScreenPrint' && (
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
                       <label className="block text-xs font-bold text-slate-500 uppercase mb-2">
                         Number of Ink Colors *
@@ -4282,7 +4573,7 @@ const OrderSlideOver: React.FC<OrderSlideOverProps> = ({ order, viewMode, onClos
                     <label className="block text-xs font-bold text-slate-500 uppercase mb-2">
                       Transfer Size *
                     </label>
-                    <div className="grid grid-cols-2 gap-3">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                       <button
                         type="button"
                         onClick={() => setSkuConfig({...skuConfig, dtfSize: 'Standard'})}

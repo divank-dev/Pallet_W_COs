@@ -1601,8 +1601,10 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ orders, onClose, onDeleteOr
                           <div className="flex justify-between"><span className="text-purple-600 font-bold">FK</span> <span>status: OrderStatus</span></div>
                           <div className="flex justify-between"><span className="text-purple-600 font-bold">FK</span> <span>artStatus: ArtStatus</span></div>
                           <div className="flex justify-between"><span className="text-slate-400">-</span> <span>createdAt: Date</span></div>
-                          <div className="flex justify-between"><span className="text-slate-400">-</span> <span>dueDate: string</span></div>
+                          <div className="flex justify-between"><span className="text-slate-400">-</span> <span>dueDate: YYYY-MM-DD</span></div>
                           <div className="flex justify-between"><span className="text-slate-400">-</span> <span>rushOrder: boolean</span></div>
+                          <div className="flex justify-between"><span className="text-orange-600 font-bold">CO</span> <span>hasChangeOrders?</span></div>
+                          <div className="flex justify-between"><span className="text-orange-600 font-bold">CO</span> <span>lastChangeOrderDate?</span></div>
                           <div className="flex justify-between"><span className="text-green-600 font-bold">1:N</span> <span>lineItems: LineItem[]</span></div>
                           <div className="flex justify-between"><span className="text-green-600 font-bold">1:1</span> <span>leadInfo?: LeadInfo</span></div>
                           <div className="flex justify-between"><span className="text-green-600 font-bold">1:1</span> <span>prepStatus: PrepStatus</span></div>
@@ -1637,6 +1639,10 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ orders, onClose, onDeleteOr
                           <div className="flex justify-between"><span className="text-slate-400">-</span> <span>received: boolean</span></div>
                           <div className="flex justify-between"><span className="text-slate-400">-</span> <span>decorated: boolean</span></div>
                           <div className="flex justify-between"><span className="text-slate-400">-</span> <span>packed: boolean</span></div>
+                          <div className="border-t border-slate-200 mt-1 pt-1"></div>
+                          <div className="flex justify-between"><span className="text-orange-600 font-bold">CO</span> <span>isChangeOrder: bool</span></div>
+                          <div className="flex justify-between"><span className="text-orange-600 font-bold">CO</span> <span>changeOrderDate?</span></div>
+                          <div className="flex justify-between"><span className="text-orange-600 font-bold">CO</span> <span>originalQuantity?</span></div>
                         </div>
                       </div>
 
@@ -1780,6 +1786,10 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ orders, onClose, onDeleteOr
                         <div className="flex items-center gap-2">
                           <span className="px-2 py-0.5 bg-green-100 text-green-700 rounded font-bold text-xs">1:1</span>
                           <span className="text-slate-600">One-to-One Relationship</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="px-2 py-0.5 bg-orange-100 text-orange-700 rounded font-bold text-xs">CO</span>
+                          <span className="text-slate-600">Change Order Field</span>
                         </div>
                       </div>
                     </div>
@@ -2210,17 +2220,17 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ orders, onClose, onDeleteOr
               <div className="prose prose-slate max-w-none">
                 <div className="bg-blue-50 border border-blue-200 rounded-xl p-6 mb-8">
                   <h4 className="text-blue-900 font-bold text-lg m-0 mb-2">Pallet 2.0 - Production Management System</h4>
-                  <p className="text-blue-700 m-0">Standard Operating Procedures Manual v2.0</p>
+                  <p className="text-blue-700 m-0">Standard Operating Procedures Manual v2.1 — Supabase Backend</p>
                 </div>
 
                 <h4 className="text-slate-900 font-bold border-b border-slate-200 pb-2">1. System Overview</h4>
-                <p>Pallet 2.0 is a comprehensive production management system designed for apparel decoration businesses. The system manages orders through a 12-stage workflow (Lead through Closed) with role-based access control, audit trail tracking, and comprehensive backup/restore capabilities.</p>
+                <p>Pallet 2.0 is a comprehensive production management system designed for apparel decoration businesses. The system manages orders through a 12-stage workflow (Lead through Closed) with role-based access control, full audit trail tracking persisted in the database, change order support at the line-item level, and real-time data synchronization across all connected devices via Supabase.</p>
 
                 <h4 className="text-slate-900 font-bold border-b border-slate-200 pb-2 mt-8">1.1 Authentication & Access</h4>
                 <ul className="list-disc pl-6 space-y-2">
                   <li><strong>Login Required:</strong> All users must authenticate to access the system</li>
                   <li><strong>Default Credentials:</strong> Username: admin / Password: admin (change on first login)</li>
-                  <li><strong>Role-Based Access:</strong> Three permission levels control what users can see and do</li>
+                  <li><strong>Role-Based Access:</strong> Six permission levels control what users can see and do</li>
                 </ul>
 
                 <div className="bg-slate-100 rounded-lg p-4 my-4">
@@ -2325,6 +2335,8 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ orders, onClose, onDeleteOr
                   <li>Mark line items complete immediately when finished</li>
                   <li>Use rush order flag for time-sensitive jobs</li>
                   <li>Complete all closeout checklist items before archiving</li>
+                  <li><strong>Change orders:</strong> Use the "New Change Order" button to add items to an existing order. Change order line items are tracked separately with their own date and original quantity fields. The order will display a change order indicator badge throughout the workflow.</li>
+                  <li><strong>Audit trail:</strong> All status changes are persisted to the database and visible in the order history. Every stage transition, change order, and field update is recorded with the user who performed it.</li>
                 </ul>
 
                 <h4 className="text-slate-900 font-bold border-b border-slate-200 pb-2 mt-8">5. Security Best Practices</h4>
@@ -2337,32 +2349,45 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ orders, onClose, onDeleteOr
                 </ul>
 
                 <h4 className="text-slate-900 font-bold border-b border-slate-200 pb-2 mt-8">6. Data Backup & Recovery</h4>
+                <div className="bg-green-50 border border-green-200 rounded-xl p-4 mb-4">
+                  <h5 className="font-bold text-green-800 m-0 mb-2">Supabase Cloud Database</h5>
+                  <p className="text-green-700 text-sm m-0">All order data, line items, and status change history are stored in a Supabase PostgreSQL database with real-time synchronization. Data persists server-side and is accessible from any device. Local settings (company info, vendor list) remain in browser localStorage.</p>
+                </div>
                 <ul className="list-disc pl-6 space-y-2">
                   <li><strong>Weekly backups:</strong> Export System Backup (Excel) weekly from Settings → Data & Backups</li>
                   <li><strong>Excel backup:</strong> Contains all data needed to rebuild system (orders, users, history, art data)</li>
                   <li><strong>JSON backup:</strong> Full Database Export for programmatic restore</li>
                   <li><strong>Store securely:</strong> Keep backups in a secure, off-site location</li>
                   <li><strong>Test restore:</strong> Periodically verify backups can be restored successfully</li>
+                  <li><strong>Change order data:</strong> Change order fields (isChangeOrder, changeOrderDate, originalQuantity) are persisted per line item and included in all backups</li>
+                  <li><strong>Audit history:</strong> Status change logs are stored in a dedicated database table and automatically loaded with each order</li>
                 </ul>
 
                 <h4 className="text-slate-900 font-bold border-b border-slate-200 pb-2 mt-8">7. Application Update Procedures</h4>
-                <p className="text-slate-600 mb-4">Follow these procedures to update the Pallet application without losing data. The application stores data in the browser's localStorage, which persists across application updates.</p>
+                <p className="text-slate-600 mb-4">Follow these procedures to update the Pallet application without losing data. Core business data (orders, line items, status history) is stored in a Supabase PostgreSQL database and is not affected by front-end deployments. Local-only settings are stored in the browser's localStorage.</p>
 
                 <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-4">
                   <h5 className="font-bold text-amber-800 m-0 mb-2 flex items-center gap-2">
                     <span>⚠️</span> Important: Always Backup Before Updating
                   </h5>
-                  <p className="text-amber-700 text-sm m-0">Before any update, export a complete backup using the System Backup (Excel) feature in Settings → Data & Backups.</p>
+                  <p className="text-amber-700 text-sm m-0">Before any update, export a complete backup using the System Backup (Excel) feature in Settings → Data & Backups. This captures both database and local data.</p>
                 </div>
 
                 <h5 className="font-bold text-slate-800 mt-6 mb-2">7.1 Data Storage Locations</h5>
-                <p className="text-slate-600 mb-2">The application stores data in the following localStorage keys:</p>
+                <p className="text-slate-600 mb-2">The application stores data across two layers:</p>
                 <div className="bg-slate-100 rounded-lg p-4 font-mono text-sm mb-4">
-                  <pre className="m-0">{`localStorage Keys:
-├── pallet-orders          # All order data (orders, line items, history)
-├── pallet-auth            # Current user session
-├── pallet-org-hierarchy   # Users, departments, permissions
-└── pallet-productivity    # Production floor tracking data`}</pre>
+                  <pre className="m-0">{`Supabase Database (server-side, persists across deployments):
+├── orders                 # All order data
+├── line_items             # Line items with change order tracking
+├── status_change_logs     # Full audit trail / order history
+├── users                  # User accounts and roles
+├── productivity_entries   # Production floor tracking
+└── art_files              # Art file metadata
+
+localStorage (browser-side, device-specific):
+├── pallet-company-settings  # Company info for POs
+├── pallet-vendors           # Vendor list
+└── pallet-auth              # Current user session cache`}</pre>
                 </div>
 
                 <h5 className="font-bold text-slate-800 mt-6 mb-2">7.2 Pre-Update Checklist</h5>
@@ -2386,8 +2411,8 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ orders, onClose, onDeleteOr
                 </ol>
 
                 <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 my-4">
-                  <h5 className="font-bold text-blue-800 m-0 mb-2">Note: localStorage Persists Automatically</h5>
-                  <p className="text-blue-700 text-sm m-0">Browser localStorage is NOT affected by application file updates. Your data will remain intact as long as you don't clear browser data or use a different browser/device.</p>
+                  <h5 className="font-bold text-blue-800 m-0 mb-2">Note: Database Data Persists Automatically</h5>
+                  <p className="text-blue-700 text-sm m-0">All order data, line items, change order fields, and audit history are stored in Supabase and are NOT affected by front-end code deployments. Local-only settings (company info, vendor list) persist in browser localStorage and are device-specific.</p>
                 </div>
 
                 <h5 className="font-bold text-slate-800 mt-6 mb-2">7.4 Post-Update Verification</h5>
@@ -2400,44 +2425,46 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ orders, onClose, onDeleteOr
                 </ul>
 
                 <h5 className="font-bold text-slate-800 mt-6 mb-2">7.5 Data Recovery (If Needed)</h5>
-                <p className="text-slate-600 mb-2">If data is lost or corrupted after update:</p>
+                <p className="text-slate-600 mb-2">If data appears missing or the application fails to load:</p>
                 <ol className="list-decimal pl-6 space-y-2">
-                  <li><strong>Don't panic:</strong> Your backup files contain all necessary data</li>
-                  <li><strong>Open browser console:</strong> Press F12 → Console tab</li>
-                  <li><strong>Restore from JSON backup:</strong> Use the following process:
-                    <div className="bg-slate-100 rounded-lg p-3 font-mono text-xs mt-2">
-                      <pre className="m-0">{`// 1. Load your backup JSON file
-// 2. In browser console, paste the orders data:
-localStorage.setItem('pallet-orders', JSON.stringify(backupData.orders));
-
-// 3. Refresh the page
-location.reload();`}</pre>
-                    </div>
+                  <li><strong>Don't panic:</strong> Order data is stored server-side in Supabase and is not affected by front-end issues</li>
+                  <li><strong>Check connectivity:</strong> Verify the browser can reach the Supabase endpoint (check the browser console for network errors)</li>
+                  <li><strong>Hard refresh:</strong> Press Ctrl+Shift+R (Windows) or Cmd+Shift+R (Mac) to clear cached assets</li>
+                  <li><strong>Verify database:</strong> Use the Supabase dashboard to confirm orders exist in the database</li>
+                  <li><strong>Restore local settings:</strong> If company info or vendor data is missing, re-enter it in Settings → Company Info (these are browser-local)
                   </li>
-                  <li><strong>Verify restoration:</strong> Check that all orders appear correctly</li>
+                  <li><strong>Restore from backup (last resort):</strong> If database data is lost, use a JSON or Excel backup to re-import data through the Supabase dashboard or API</li>
                   <li><strong>Re-import users (if needed):</strong> Use CSV import in Settings → Security</li>
                 </ol>
 
                 <h5 className="font-bold text-slate-800 mt-6 mb-2">7.6 Clearing Data (Fresh Start)</h5>
-                <p className="text-slate-600 mb-2">To completely reset the application (removes ALL data):</p>
+                <p className="text-slate-600 mb-2">To reset the application:</p>
                 <div className="bg-red-50 border border-red-200 rounded-xl p-4">
-                  <p className="text-red-700 text-sm mb-2"><strong>Warning:</strong> This will delete all orders, users, and settings permanently.</p>
-                  <div className="bg-white rounded-lg p-3 font-mono text-xs">
+                  <p className="text-red-700 text-sm mb-2"><strong>Warning:</strong> Database operations are irreversible. Always export a full backup first.</p>
+                  <p className="text-red-800 text-sm font-bold mb-2">Clear local-only settings (browser console):</p>
+                  <div className="bg-white rounded-lg p-3 font-mono text-xs mb-3">
                     <pre className="m-0">{`// In browser console (F12):
-localStorage.removeItem('pallet-orders');
+localStorage.removeItem('pallet-company-settings');
+localStorage.removeItem('pallet-vendors');
 localStorage.removeItem('pallet-auth');
-localStorage.removeItem('pallet-org-hierarchy');
-localStorage.removeItem('pallet-productivity');
 location.reload();`}</pre>
+                  </div>
+                  <p className="text-red-800 text-sm font-bold mb-2">Clear database data (Supabase dashboard or SQL):</p>
+                  <div className="bg-white rounded-lg p-3 font-mono text-xs">
+                    <pre className="m-0">{`-- Run in Supabase SQL Editor:
+TRUNCATE status_change_logs CASCADE;
+TRUNCATE line_items CASCADE;
+TRUNCATE orders CASCADE;
+-- Users and other tables can be truncated separately if needed`}</pre>
                   </div>
                 </div>
 
-                <h5 className="font-bold text-slate-800 mt-6 mb-2">7.7 Multi-Device Considerations</h5>
+                <h5 className="font-bold text-slate-800 mt-6 mb-2">7.7 Multi-Device & Real-Time Sync</h5>
                 <ul className="list-disc pl-6 space-y-2">
-                  <li><strong>localStorage is device-specific:</strong> Each browser/device has its own data</li>
-                  <li><strong>Designate primary device:</strong> Use one computer as the "master" for data entry</li>
-                  <li><strong>Sync via exports:</strong> Export from primary device, import on secondary devices if needed</li>
-                  <li><strong>Future enhancement:</strong> Cloud sync will eliminate this limitation</li>
+                  <li><strong>Real-time sync:</strong> All order data is stored in Supabase and synchronized across devices in real time via PostgreSQL change subscriptions</li>
+                  <li><strong>Multiple users:</strong> Multiple team members can work on different orders simultaneously from different devices</li>
+                  <li><strong>Local settings are device-specific:</strong> Company info and vendor lists are stored in browser localStorage and must be configured on each device</li>
+                  <li><strong>Offline fallback:</strong> If the database connection fails, the app loads test/sample orders in offline mode and displays a warning banner</li>
                 </ul>
               </div>
             </div>
@@ -2464,16 +2491,18 @@ location.reload();`}</pre>
                   <li><strong>Styling:</strong> Tailwind CSS (CDN)</li>
                   <li><strong>Icons:</strong> Lucide React</li>
                   <li><strong>State Management:</strong> React Context API + useState/useMemo hooks</li>
+                  <li><strong>Backend / Database:</strong> Supabase (hosted PostgreSQL) with real-time subscriptions</li>
+                  <li><strong>Authentication:</strong> Supabase Auth with React Context wrapper</li>
                   <li><strong>Excel Export:</strong> SheetJS (xlsx library)</li>
-                  <li><strong>Authentication:</strong> Context-based auth with localStorage persistence</li>
                 </ul>
 
                 <h4 className="text-slate-900 font-bold border-b border-slate-200 pb-2 mt-8">2. Data Persistence</h4>
-                <p>For production deployment, integrate with:</p>
+                <p>The application uses a two-layer persistence model:</p>
                 <ul className="list-disc pl-6 space-y-1">
-                  <li>PostgreSQL or MySQL for relational data</li>
-                  <li>Redis for session caching</li>
-                  <li>S3-compatible storage for file attachments</li>
+                  <li><strong>Supabase PostgreSQL:</strong> Orders, line items (including change order fields: is_change_order, change_order_date, original_quantity), status_change_logs (audit history), users, productivity entries, art file metadata</li>
+                  <li><strong>Browser localStorage:</strong> Company settings (pallet-company-settings), vendor list (pallet-vendors), session cache (pallet-auth)</li>
+                  <li><strong>Real-time sync:</strong> Supabase Realtime subscriptions on orders and line_items tables push updates to all connected clients</li>
+                  <li><strong>Future:</strong> S3-compatible storage for file attachments via Supabase Storage</li>
                 </ul>
 
                 <h4 className="text-slate-900 font-bold border-b border-slate-200 pb-2 mt-8">3. API Integration Points</h4>
@@ -2518,21 +2547,33 @@ GET    /api/export/lineitems    # Line items CSV`}</pre>
 ├── constants.tsx               # Stage definitions, defaults
 ├── components/
 │   ├── Sidebar.tsx             # Icon navigation bar
-│   ├── WorkflowSidebar.tsx     # Stage navigation
+│   ├── WorkflowSidebar.tsx     # Stage navigation (responsive)
 │   ├── OrderCard.tsx           # Order summary cards
 │   ├── OrderSlideOver.tsx      # Order detail panel (12 stages)
 │   ├── NewOrderModal.tsx       # Create lead/order form
+│   ├── ChangeOrderModal.tsx    # Change order selection modal
 │   ├── CustomerSearch.tsx      # Customer search autocomplete
 │   ├── ReportsPage.tsx         # Queue & Performance reports
 │   ├── SettingsPage.tsx        # Settings & documentation
 │   ├── LoginPage.tsx           # Authentication login page
+│   ├── SetupWizard.tsx         # First-run setup wizard
 │   ├── FulfillmentTrackingPage.tsx  # Fulfillment tracking
 │   └── ProductionFloorPage.tsx # Production floor dashboard
+├── src/lib/
+│   ├── supabase.ts             # Supabase client initialization
+│   ├── orderService.ts         # Order CRUD, real-time subscriptions
+│   ├── authService.ts          # Auth repair, setup check
+│   └── database.types.ts       # Generated Supabase DB types
 ├── contexts/
-│   └── AuthContext.tsx         # Authentication provider
+│   └── AuthContext.tsx          # Authentication provider
 ├── utils/
 │   ├── pricing.ts              # Price calculation logic
 │   └── permissions.ts          # RBAC permission definitions
+├── supabase/migrations/
+│   ├── 20240123000001_schema.sql       # Initial schema
+│   ├── 20240123000002_disable_rls.sql  # RLS configuration
+│   ├── 20240124000001_seed_users.sql   # Default users
+│   └── 20240125000001_add_change_order_fields.sql  # Change order columns
 └── tests/
     ├── testOrders.ts           # Test order data
     ├── testUtils.ts            # Validation utilities

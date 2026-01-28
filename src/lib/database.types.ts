@@ -274,6 +274,9 @@ export interface Database {
           is_plus_size: boolean
           stitch_count_tier: string | null
           dtf_size: string | null
+          is_change_order: boolean
+          change_order_date: string | null
+          original_quantity: number | null
         }
         Insert: {
           id?: string
@@ -303,6 +306,9 @@ export interface Database {
           is_plus_size?: boolean
           stitch_count_tier?: string | null
           dtf_size?: string | null
+          is_change_order?: boolean
+          change_order_date?: string | null
+          original_quantity?: number | null
         }
         Update: {
           id?: string
@@ -332,6 +338,9 @@ export interface Database {
           is_plus_size?: boolean
           stitch_count_tier?: string | null
           dtf_size?: string | null
+          is_change_order?: boolean
+          change_order_date?: string | null
+          original_quantity?: number | null
         }
       }
       status_change_logs: {

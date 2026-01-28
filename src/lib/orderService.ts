@@ -1,9 +1,49 @@
 // Order Service - Supabase Data Layer
 import { supabase } from './supabase';
-import { Order, LineItem, OrderStatus, ArtStatus, ProductionMethod } from '../../types';
+import { Order, LineItem, OrderStatus, ArtStatus, ProductionMethod, StatusChangeLog } from '../../types';
+
+// Normalize a date value to YYYY-MM-DD string
+function normalizeDateToString(value: any): string {
+  if (!value) return '';
+  if (typeof value === 'string') {
+    // Already a string — extract just the date portion if it's an ISO timestamp
+    const match = value.match(/^(\d{4}-\d{2}-\d{2})/);
+    return match ? match[1] : value;
+  }
+  if (value instanceof Date) {
+    return value.toISOString().split('T')[0];
+  }
+  return '';
+}
+
+// Convert DB status_change_logs rows to StatusChangeLog[]
+function dbToHistory(logs: any[]): StatusChangeLog[] {
+  return logs.map(log => ({
+    timestamp: new Date(log.timestamp),
+    userId: log.user_id || undefined,
+    userName: log.user_name || undefined,
+    action: log.action,
+    previousValue: log.previous_value,
+    newValue: log.new_value,
+    notes: log.notes || undefined
+  }));
+}
 
 // Convert Supabase row to app Order type
-function dbToOrder(dbOrder: any, lineItems: any[] = []): Order {
+function dbToOrder(dbOrder: any, lineItems: any[] = [], historyLogs: any[] = []): Order {
+  const mappedLineItems = lineItems.map(dbToLineItem);
+
+  // Compute change order tracking from line items (Issue 3)
+  const changeOrderItems = mappedLineItems.filter(li => li.isChangeOrder);
+  const hasChangeOrders = changeOrderItems.length > 0;
+  const lastChangeOrderDate = hasChangeOrders
+    ? changeOrderItems.reduce((latest: Date | undefined, li) => {
+        if (!li.changeOrderDate) return latest;
+        if (!latest || li.changeOrderDate > latest) return li.changeOrderDate;
+        return latest;
+      }, undefined)
+    : undefined;
+
   return {
     id: dbOrder.id,
     orderNumber: dbOrder.order_number,
@@ -15,12 +55,12 @@ function dbToOrder(dbOrder: any, lineItems: any[] = []): Order {
     artStatus: dbOrder.art_status as ArtStatus,
     createdAt: new Date(dbOrder.created_at),
     updatedAt: dbOrder.updated_at ? new Date(dbOrder.updated_at) : undefined,
-    dueDate: dbOrder.due_date || '',
+    dueDate: normalizeDateToString(dbOrder.due_date),
     rushOrder: dbOrder.rush_order || false,
     notes: dbOrder.notes || undefined,
     poNumbers: dbOrder.po_numbers || undefined,
     selectedVendorId: dbOrder.selected_vendor_id || undefined,
-    lineItems: lineItems.map(dbToLineItem),
+    lineItems: mappedLineItems,
     leadInfo: dbOrder.lead_info || undefined,
     artConfirmation: dbOrder.art_confirmation || {
       overallStatus: 'Not Started',
@@ -49,13 +89,15 @@ function dbToOrder(dbOrder: any, lineItems: any[] = []): Order {
       canvaArchived: false,
       summaryUploaded: false
     },
-    history: [], // We'll handle history separately if needed
+    history: dbToHistory(historyLogs),
     version: dbOrder.version || 1,
     archivedAt: dbOrder.archived_at ? new Date(dbOrder.archived_at) : undefined,
     isArchived: dbOrder.is_archived || false,
     closedAt: dbOrder.closed_at ? new Date(dbOrder.closed_at) : undefined,
     closedReason: dbOrder.closed_reason || undefined,
-    reopenedFrom: dbOrder.reopened_from as OrderStatus | undefined
+    reopenedFrom: dbOrder.reopened_from as OrderStatus | undefined,
+    hasChangeOrders: hasChangeOrders || undefined,
+    lastChangeOrderDate
   };
 }
 
@@ -70,7 +112,7 @@ function orderToDb(order: Partial<Order>): any {
   if (order.projectName !== undefined) dbOrder.project_name = order.projectName;
   if (order.status !== undefined) dbOrder.status = order.status;
   if (order.artStatus !== undefined) dbOrder.art_status = order.artStatus;
-  if (order.dueDate !== undefined) dbOrder.due_date = order.dueDate || null;
+  if (order.dueDate !== undefined) dbOrder.due_date = normalizeDateToString(order.dueDate) || null;
   if (order.rushOrder !== undefined) dbOrder.rush_order = order.rushOrder;
   if (order.notes !== undefined) dbOrder.notes = order.notes;
   if (order.poNumbers !== undefined) dbOrder.po_numbers = order.poNumbers;
@@ -116,7 +158,10 @@ function dbToLineItem(dbItem: any): LineItem {
     screenPrintColors: dbItem.screen_print_colors || undefined,
     isPlusSize: dbItem.is_plus_size || false,
     stitchCountTier: dbItem.stitch_count_tier || undefined,
-    dtfSize: dbItem.dtf_size || undefined
+    dtfSize: dbItem.dtf_size || undefined,
+    isChangeOrder: dbItem.is_change_order || false,
+    changeOrderDate: dbItem.change_order_date ? new Date(dbItem.change_order_date) : undefined,
+    originalQuantity: dbItem.original_quantity ?? undefined
   };
 }
 
@@ -146,7 +191,10 @@ function lineItemToDb(item: LineItem, orderId: string): any {
     screen_print_colors: item.screenPrintColors,
     is_plus_size: item.isPlusSize,
     stitch_count_tier: item.stitchCountTier,
-    dtf_size: item.dtfSize
+    dtf_size: item.dtfSize,
+    is_change_order: item.isChangeOrder || false,
+    change_order_date: item.changeOrderDate?.toISOString() || null,
+    original_quantity: item.originalQuantity ?? null
   };
 }
 
@@ -194,6 +242,18 @@ export async function fetchOrders(): Promise<Order[]> {
     throw lineItemsError;
   }
 
+  // Fetch status change logs for these orders with timeout
+  const { data: logsData, error: logsError } = await withTimeout(
+    Promise.resolve(supabase.from('status_change_logs').select('*').in('order_id', orderIds).order('timestamp', { ascending: true })),
+    15000,
+    'Status change logs fetch timed out after 15 seconds'
+  ) as any;
+
+  if (logsError) {
+    console.error('Error fetching status change logs:', logsError);
+    // Non-fatal: continue with empty history
+  }
+
   // Group line items by order_id
   const lineItemsByOrder: Record<string, any[]> = {};
   (lineItemsData || []).forEach(item => {
@@ -203,8 +263,17 @@ export async function fetchOrders(): Promise<Order[]> {
     lineItemsByOrder[item.order_id].push(item);
   });
 
+  // Group logs by order_id
+  const logsByOrder: Record<string, any[]> = {};
+  (logsData || []).forEach((log: any) => {
+    if (!logsByOrder[log.order_id]) {
+      logsByOrder[log.order_id] = [];
+    }
+    logsByOrder[log.order_id].push(log);
+  });
+
   // Convert to app format
-  return ordersData.map(order => dbToOrder(order, lineItemsByOrder[order.id] || []));
+  return ordersData.map(order => dbToOrder(order, lineItemsByOrder[order.id] || [], logsByOrder[order.id] || []));
 }
 
 // Fetch a single order by ID
@@ -229,7 +298,17 @@ export async function fetchOrderById(id: string): Promise<Order | null> {
     console.error('Error fetching line items:', lineItemsError);
   }
 
-  return dbToOrder(orderData, lineItemsData || []);
+  const { data: logsData, error: logsError } = await supabase
+    .from('status_change_logs')
+    .select('*')
+    .eq('order_id', id)
+    .order('timestamp', { ascending: true });
+
+  if (logsError) {
+    console.error('Error fetching status change logs:', logsError);
+  }
+
+  return dbToOrder(orderData, lineItemsData || [], logsData || []);
 }
 
 // Create a new order

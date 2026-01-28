@@ -55,9 +55,11 @@ const AppContent: React.FC = () => {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  // Track component mount state to prevent updates after unmount
+  // Track component mount state to prevent updates after unmount.
+  // Must set true on mount to handle React 18 StrictMode double-mount cycle.
   const isMountedRef = useRef(true);
   useEffect(() => {
+    isMountedRef.current = true;
     return () => { isMountedRef.current = false; };
   }, []);
 
@@ -927,7 +929,12 @@ const AuthenticatedApp: React.FC = () => {
       }
 
       try {
-        const status = await checkSetupStatus();
+        // Timeout setup check to prevent Chrome from hanging on slow Supabase responses.
+        // checkSetupStatus has internal retries that can take up to ~95s; cap it at 8s.
+        const status = await Promise.race([
+          checkSetupStatus(),
+          new Promise<never>((_, reject) => setTimeout(() => reject(new Error('Setup check timeout')), 8000))
+        ]);
         setSetupStatus(status.needsSetup ? 'needed' : 'complete');
       } catch (err) {
         console.error('Setup check failed:', err);

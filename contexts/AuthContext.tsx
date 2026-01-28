@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode, useMemo, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef, ReactNode, useMemo, useCallback } from 'react';
 import { User, UserRole, OrgHierarchy } from '../types';
 import { Permissions, getPermissions } from '../utils/permissions';
 import { supabase } from '../src/lib/supabase';
@@ -102,7 +102,14 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [isLoading, setIsLoading] = useState(true);
   const [orgHierarchy, setOrgHierarchy] = useState<OrgHierarchy>(EMPTY_ORG);
 
+  // Use ref for currentUser ID to avoid dependency cycle in refreshOrgHierarchy
+  const currentUserIdRef = useRef<string | undefined>(undefined);
+  useEffect(() => {
+    currentUserIdRef.current = currentUser?.id;
+  }, [currentUser?.id]);
+
   // Fetch org hierarchy (users and departments) from Supabase
+  // Uses ref for currentUser.id to keep this callback stable
   const refreshOrgHierarchy = useCallback(async () => {
     try {
       const [users, departments] = await Promise.all([
@@ -114,177 +121,173 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         users,
         departments,
         lastUpdatedAt: new Date(),
-        lastUpdatedBy: currentUser?.id
+        lastUpdatedBy: currentUserIdRef.current
       });
     } catch (error) {
       console.error('Failed to fetch org hierarchy:', error);
     }
-  }, [currentUser?.id]);
+  }, []);
 
-  // Handle auth state changes from Supabase
-  const handleAuthStateChange = useCallback(async (event: AuthChangeEvent, session: Session | null) => {
+  // Track the last processed auth user ID to prevent duplicate processing
+  const lastProcessedAuthIdRef = useRef<string | null>(null);
+
+  // Flag to suppress SIGNED_OUT events during login cleanup (prevents loading state flicker)
+  const loginInProgressRef = useRef(false);
+
+  // Pending auth session — set by onAuthStateChange, processed by a decoupled effect.
+  // This separation is CRITICAL: Supabase's onAuthStateChange callback fires while the client
+  // may still be holding internal locks (e.g., during token refresh on page reload). Making
+  // database queries inside the callback causes them to hang in Chrome. By storing the session
+  // in React state and processing it in a useEffect, we give the Supabase client time to
+  // complete its internal operations before we make any database calls.
+  const [pendingAuthSession, setPendingAuthSession] = useState<Session | null>(null);
+
+  // Handle auth state changes from Supabase (synchronous — no database queries here)
+  const handleAuthStateChange = useCallback((event: AuthChangeEvent, session: Session | null) => {
     console.log('[AuthContext] Auth state changed:', event, session?.user?.id);
 
-    // Handle sign in events (both initial session and new sign in)
     if ((event === 'SIGNED_IN' || event === 'INITIAL_SESSION') && session?.user) {
+      // Skip if we already processed this exact auth user
+      if (lastProcessedAuthIdRef.current === session.user.id) {
+        console.log('[AuthContext] Already processed auth for user:', session.user.id, '- skipping duplicate');
+        setIsLoading(false);
+        return;
+      }
+      // Store session for processing in the effect (decoupled from callback)
+      setPendingAuthSession(session);
+    } else if (event === 'SIGNED_OUT') {
+      lastProcessedAuthIdRef.current = null;
+      if (!loginInProgressRef.current) {
+        setPendingAuthSession(null);
+        setCurrentUser(null);
+        setIsAuthenticated(false);
+        setLoginError(null);
+        setIsLoading(false);
+      }
+    } else if (event === 'TOKEN_REFRESHED') {
+      console.log('[AuthContext] Token refreshed for session');
+    }
+
+    // For events with no user (null session), stop loading immediately
+    if (!session?.user && event !== 'TOKEN_REFRESHED') {
+      setIsLoading(false);
+    }
+  }, []);
+
+  // Process pending auth session — decoupled from onAuthStateChange to avoid Supabase client lock
+  useEffect(() => {
+    if (!pendingAuthSession) return;
+
+    const session = pendingAuthSession;
+    setPendingAuthSession(null);
+
+    const processAuthSession = async () => {
+      const userId = session.user!.id;
+      lastProcessedAuthIdRef.current = userId;
+
       try {
+        // Brief delay to let Supabase client finish internal token operations
+        await new Promise(resolve => setTimeout(resolve, 50));
+
         // Fetch user profile from our users table using auth_user_id
-        console.log('[AuthContext] Looking up user profile by auth_user_id:', session.user.id);
-        let userProfile = await fetchUserByAuthId(session.user.id);
+        console.log('[AuthContext] Looking up user profile by auth_user_id:', userId);
+        let userProfile = await fetchUserByAuthId(userId);
 
         // If no profile found by auth_user_id, try looking up by email as a fallback
-        // This handles cases where auth_user_id wasn't properly linked
-        if (!userProfile && session.user.email) {
-          console.log('[AuthContext] No profile found by auth_user_id, trying email lookup:', session.user.email);
-          userProfile = await fetchUserByEmail(session.user.email);
+        if (!userProfile && session.user!.email) {
+          console.log('[AuthContext] No profile found by auth_user_id, trying email lookup:', session.user!.email);
+          userProfile = await fetchUserByEmail(session.user!.email);
 
           if (userProfile) {
-            console.log('[AuthContext] Found user by email, auth_user_id link is missing - attempting repair');
-            // User exists but auth_user_id is not linked - this is the multi-terminal bug!
-            // Attempt to repair the link
+            console.log('[AuthContext] Found user by email, auth_user_id link missing - repairing');
             const { error: linkError } = await supabase
               .from('users')
-              .update({ auth_user_id: session.user.id })
+              .update({ auth_user_id: userId })
               .eq('id', userProfile.id);
 
             if (linkError) {
               console.error('[AuthContext] Failed to repair auth link:', linkError);
-              // Continue anyway - user can still log in this session
             } else {
-              console.log('[AuthContext] Successfully repaired auth_user_id link for user:', userProfile.username);
+              console.log('[AuthContext] Repaired auth_user_id link for:', userProfile.username);
             }
           }
         }
 
         if (userProfile) {
           if (!userProfile.isActive) {
-            // User account is deactivated
             console.log('[AuthContext] User account is deactivated:', userProfile.username);
+            lastProcessedAuthIdRef.current = null;
             await supabase.auth.signOut();
             setLoginError('This account has been deactivated');
             setCurrentUser(null);
             setIsAuthenticated(false);
           } else {
-            // Update last login timestamp
             await updateLastLogin(userProfile.id);
             setCurrentUser({ ...userProfile, lastLoginAt: new Date() });
             setIsAuthenticated(true);
             setLoginError(null);
             console.log('[AuthContext] Login successful for user:', userProfile.username);
-            // Refresh org hierarchy after login
             await refreshOrgHierarchy();
           }
         } else {
-          // No user profile found - this shouldn't happen in normal flow
-          // Log detailed info for debugging
           console.error('[AuthContext] CRITICAL: No user profile found!');
-          console.error('[AuthContext] Auth user ID:', session.user.id);
-          console.error('[AuthContext] Auth email:', session.user.email);
-          console.error('[AuthContext] This usually means auth_user_id is not linked in the users table.');
-          console.error('[AuthContext] Run the setup wizard or use repairAllMissingAuthLinks() to fix.');
-          setLoginError('User profile not found. Your account may need to be re-linked. Please contact your administrator.');
+          console.error('[AuthContext] Auth user ID:', userId);
+          console.error('[AuthContext] Auth email:', session.user!.email);
+          setLoginError('User profile not found. Please contact your administrator.');
+          lastProcessedAuthIdRef.current = null;
           await supabase.auth.signOut();
           setCurrentUser(null);
           setIsAuthenticated(false);
         }
       } catch (error) {
         console.error('[AuthContext] Error fetching user profile:', error);
+        lastProcessedAuthIdRef.current = null;
         setLoginError('Failed to load user profile');
         setCurrentUser(null);
         setIsAuthenticated(false);
       }
-    } else if (event === 'SIGNED_OUT') {
-      setCurrentUser(null);
-      setIsAuthenticated(false);
-      setLoginError(null);
-    } else if (event === 'TOKEN_REFRESHED') {
-      // Token was refreshed, no action needed
-      console.log('[AuthContext] Token refreshed for session');
-    }
 
-    setIsLoading(false);
-  }, [refreshOrgHierarchy]);
+      setIsLoading(false);
+    };
 
-  // Initialize auth state on mount
+    processAuthSession();
+  }, [pendingAuthSession, refreshOrgHierarchy]);
+
+  // Ref to always call the latest handleAuthStateChange without re-subscribing
+  const handleAuthStateChangeRef = useRef(handleAuthStateChange);
   useEffect(() => {
-    // Helper to add timeout to async operations to prevent hanging
-    const withTimeout = <T,>(promise: Promise<T>, ms: number, fallback: T): Promise<T> => {
-      return Promise.race([
-        promise,
-        new Promise<T>((resolve) => setTimeout(() => resolve(fallback), ms))
-      ]);
-    };
-
-    // Check for existing session
-    const initAuth = async () => {
-      try {
-        const { data: { session }, error } = await supabase.auth.getSession();
-
-        if (error) {
-          console.error('Error getting session:', error);
-          setIsLoading(false);
-          return;
-        }
-
-        if (session?.user) {
-          // CRITICAL FIX: Validate the cached session against the server
-          // getSession() only reads from localStorage and may return stale/invalid tokens
-          // getUser() actually validates the JWT with Supabase servers
-          // Add timeout to prevent hanging on slow/failed network requests
-          console.log('[AuthContext] Found cached session, validating with server...');
-
-          const validationResult = await withTimeout(
-            supabase.auth.getUser(),
-            5000, // 5 second timeout
-            { data: { user: null }, error: { message: 'Validation timeout' } as any }
-          );
-
-          const user = validationResult.data?.user;
-          const userError = validationResult.error;
-
-          if (userError || !user) {
-            // Session is stale/invalid/timed out - clear it and allow fresh login
-            console.log('[AuthContext] Cached session invalid, clearing stale data:', userError?.message);
-            // Use timeout for signOut too to prevent hanging
-            await withTimeout(supabase.auth.signOut(), 2000, undefined);
-            setIsLoading(false);
-            return;
-          }
-
-          console.log('[AuthContext] Session validated successfully for user:', user.id);
-          await handleAuthStateChange('SIGNED_IN', session);
-        } else {
-          setIsLoading(false);
-        }
-      } catch (error) {
-        console.error('Error initializing auth:', error);
-        // Clear potentially corrupted session data on error
-        try {
-          await withTimeout(supabase.auth.signOut(), 2000, undefined);
-        } catch {
-          // Ignore signOut errors during cleanup
-        }
-        setIsLoading(false);
-      }
-    };
-
-    initAuth();
-
-    // Subscribe to auth state changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(handleAuthStateChange);
-
-    // Cleanup subscription on unmount
-    return () => {
-      subscription.unsubscribe();
-    };
+    handleAuthStateChangeRef.current = handleAuthStateChange;
   }, [handleAuthStateChange]);
 
-  // Load org hierarchy on mount (for user listings in admin)
+  // Initialize auth: subscribe to Supabase auth state changes (runs once on mount)
+  // INITIAL_SESSION fires automatically with the cached session (or null if none).
+  // Session validation for INITIAL_SESSION is handled inside handleAuthStateChange.
+  // This eliminates the race condition between initAuth and onAuthStateChange that
+  // caused Chrome to hang on the load screen.
   useEffect(() => {
-    if (isAuthenticated) {
-      refreshOrgHierarchy();
-    }
-  }, [isAuthenticated, refreshOrgHierarchy]);
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      (event, session) => handleAuthStateChangeRef.current(event, session)
+    );
+
+    // Safety fallback: if no auth event fires within 8 seconds, stop loading.
+    // This prevents the app from being stuck on the spinner forever.
+    const safetyTimeout = setTimeout(() => {
+      setIsLoading((current) => {
+        if (current) {
+          console.warn('[AuthContext] Safety timeout: no auth event received in 8s, stopping loader');
+        }
+        return false;
+      });
+    }, 8000);
+
+    return () => {
+      subscription.unsubscribe();
+      clearTimeout(safetyTimeout);
+    };
+  }, []);
+
+  // Note: org hierarchy is loaded inside handleAuthStateChange after login.
+  // No separate effect needed — this prevents duplicate fetches.
 
   /**
    * Login with username and password
@@ -301,6 +304,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       // This fixes the multi-computer login issue where old cached sessions interfere
       // Use a short timeout to prevent hanging on stale sessions
       console.log('[Auth] Clearing any existing session before fresh login...');
+      loginInProgressRef.current = true;
       try {
         await Promise.race([
           supabase.auth.signOut(),
@@ -309,6 +313,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       } catch {
         // Ignore signOut errors - we're just clearing stale data
       }
+      loginInProgressRef.current = false;
 
       // Step 1: Find user by username to get their email
       console.log('[Auth] Step 1: Looking up user by username...');

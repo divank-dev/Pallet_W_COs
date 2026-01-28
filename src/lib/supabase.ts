@@ -60,9 +60,20 @@ export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey, {
     fetch: (url: RequestInfo | URL, options?: RequestInit) => {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 30000); // 30s timeout (allows for Supabase project wake-up)
+
+      // If Supabase passes its own signal, forward its abort to our controller
+      // This ensures our 30s timeout ALWAYS applies (Chrome fix — prevents indefinite hangs)
+      if (options?.signal) {
+        if (options.signal.aborted) {
+          controller.abort();
+        } else {
+          options.signal.addEventListener('abort', () => controller.abort(), { once: true });
+        }
+      }
+
       return fetch(url, {
         ...options,
-        signal: options?.signal || controller.signal
+        signal: controller.signal // Always use our timeout-protected signal
       }).finally(() => clearTimeout(timeoutId));
     }
   }

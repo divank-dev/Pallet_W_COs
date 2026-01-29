@@ -196,6 +196,7 @@ export interface PrepStatus {
   gangSheetCreated: boolean | null;    // Required if DTF present
   artworkDigitized: boolean | null;    // Required if Embroidery present
   screensBurned: boolean | null;       // Required if ScreenPrint present
+  prepPending: boolean;                // True if inventory was received before prep completed
 }
 
 // Stage 9: Invoice status

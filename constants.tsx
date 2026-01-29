@@ -18,7 +18,8 @@ export const ORDER_STAGES: OrderStatus[] = [
 export const DEFAULT_PREP_STATUS: PrepStatus = {
   gangSheetCreated: null,
   artworkDigitized: null,
-  screensBurned: null
+  screensBurned: null,
+  prepPending: false
 };
 
 export const DEFAULT_FULFILLMENT: FulfillmentStatus = {

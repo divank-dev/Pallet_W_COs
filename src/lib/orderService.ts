@@ -69,10 +69,12 @@ function dbToOrder(dbOrder: any, lineItems: any[] = [], historyLogs: any[] = [])
       referenceFiles: [],
       revisionHistory: []
     },
-    prepStatus: dbOrder.prep_status || {
+    prepStatus: {
       gangSheetCreated: null,
       artworkDigitized: null,
-      screensBurned: null
+      screensBurned: null,
+      prepPending: false,
+      ...dbOrder.prep_status
     },
     fulfillment: dbOrder.fulfillment_status || {
       method: null,

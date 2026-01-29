@@ -3318,9 +3318,22 @@ const OrderSlideOver: React.FC<OrderSlideOverProps> = ({ order, viewMode, onClos
                   <ArrowLeft size={18} /> Move Back One Stage
                 </button>
               )}
+              {!allPrepComplete && (
+                <button
+                  onClick={() => onUpdate({
+                    ...order,
+                    status: 'Inventory Received',
+                    prepStatus: { ...order.prepStatus, prepPending: true },
+                    updatedAt: new Date()
+                  })}
+                  className="flex-1 py-4 rounded-xl font-bold transition-all bg-amber-500 text-white hover:bg-amber-600"
+                >
+                  Skip to Inventory (Prep Pending)
+                </button>
+              )}
               <button
                 disabled={!allPrepComplete}
-                onClick={() => moveNext('Inventory Received')}
+                onClick={() => moveNext('Inventory Received', { prepStatus: { ...order.prepStatus, prepPending: false } })}
                 className={`flex-1 py-4 rounded-xl font-bold transition-all ${
                   allPrepComplete ? 'bg-blue-600 text-white hover:bg-blue-700' : 'bg-slate-100 text-slate-400 cursor-not-allowed'
                 }`}
@@ -3349,6 +3362,106 @@ const OrderSlideOver: React.FC<OrderSlideOverProps> = ({ order, viewMode, onClos
                       All items must be received and confirmed before advancing.
                     </p>
                   </div>
+                </div>
+              </div>
+            )}
+
+            {/* Production Prep Pending Warning */}
+            {order.prepStatus.prepPending && (
+              <div className="bg-amber-50 border-2 border-amber-300 rounded-xl p-4 space-y-4">
+                <div className="flex items-start gap-3">
+                  <AlertCircle size={20} className="text-amber-600 flex-shrink-0 mt-0.5" />
+                  <div>
+                    <p className="font-bold text-amber-900">Production Prep Pending</p>
+                    <p className="text-sm text-amber-700 mt-1">
+                      Inventory was received before production prep was completed. Complete all prep tasks below before advancing to Production.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  {requiredPrepTasks.needsGangSheet && (
+                    <div
+                      onClick={() => onUpdate({
+                        ...order,
+                        prepStatus: { ...order.prepStatus, gangSheetCreated: !order.prepStatus.gangSheetCreated }
+                      })}
+                      className="flex items-center justify-between p-3 bg-cyan-50 rounded-lg border border-cyan-100 cursor-pointer hover:bg-cyan-100 transition-colors"
+                    >
+                      <div className="flex items-center gap-3">
+                        <Printer size={18} className="text-cyan-600" />
+                        <div>
+                          <p className="font-bold text-slate-900 text-sm">Gang Sheet Created</p>
+                          <p className="text-xs text-slate-500">Required for DTF items</p>
+                        </div>
+                      </div>
+                      <div className={`w-7 h-7 rounded-full flex items-center justify-center border-2 transition-colors ${
+                        order.prepStatus.gangSheetCreated ? 'bg-green-500 border-green-500 text-white' : 'border-slate-300'
+                      }`}>
+                        {order.prepStatus.gangSheetCreated && <Check size={12} strokeWidth={4} />}
+                      </div>
+                    </div>
+                  )}
+
+                  {requiredPrepTasks.needsDigitizing && (
+                    <div
+                      onClick={() => onUpdate({
+                        ...order,
+                        prepStatus: { ...order.prepStatus, artworkDigitized: !order.prepStatus.artworkDigitized }
+                      })}
+                      className="flex items-center justify-between p-3 bg-amber-50 rounded-lg border border-amber-100 cursor-pointer hover:bg-amber-100 transition-colors"
+                    >
+                      <div className="flex items-center gap-3">
+                        <Layers size={18} className="text-amber-600" />
+                        <div>
+                          <p className="font-bold text-slate-900 text-sm">Artwork Digitized</p>
+                          <p className="text-xs text-slate-500">Required for Embroidery items</p>
+                        </div>
+                      </div>
+                      <div className={`w-7 h-7 rounded-full flex items-center justify-center border-2 transition-colors ${
+                        order.prepStatus.artworkDigitized ? 'bg-green-500 border-green-500 text-white' : 'border-slate-300'
+                      }`}>
+                        {order.prepStatus.artworkDigitized && <Check size={12} strokeWidth={4} />}
+                      </div>
+                    </div>
+                  )}
+
+                  {requiredPrepTasks.needsScreens && (
+                    <div
+                      onClick={() => onUpdate({
+                        ...order,
+                        prepStatus: { ...order.prepStatus, screensBurned: !order.prepStatus.screensBurned }
+                      })}
+                      className="flex items-center justify-between p-3 bg-purple-50 rounded-lg border border-purple-100 cursor-pointer hover:bg-purple-100 transition-colors"
+                    >
+                      <div className="flex items-center gap-3">
+                        <Package size={18} className="text-purple-600" />
+                        <div>
+                          <p className="font-bold text-slate-900 text-sm">Screens Burned</p>
+                          <p className="text-xs text-slate-500">Required for Screen Print items</p>
+                        </div>
+                      </div>
+                      <div className={`w-7 h-7 rounded-full flex items-center justify-center border-2 transition-colors ${
+                        order.prepStatus.screensBurned ? 'bg-green-500 border-green-500 text-white' : 'border-slate-300'
+                      }`}>
+                        {order.prepStatus.screensBurned && <Check size={12} strokeWidth={4} />}
+                      </div>
+                    </div>
+                  )}
+
+                  {allPrepComplete && (
+                    <div className="pt-2">
+                      <button
+                        onClick={() => onUpdate({
+                          ...order,
+                          prepStatus: { ...order.prepStatus, prepPending: false }
+                        })}
+                        className="w-full py-2 bg-green-600 text-white rounded-lg font-bold hover:bg-green-700 transition-colors"
+                      >
+                        Mark Prep Complete
+                      </button>
+                    </div>
+                  )}
                 </div>
               </div>
             )}
@@ -3463,13 +3576,13 @@ const OrderSlideOver: React.FC<OrderSlideOverProps> = ({ order, viewMode, onClos
                 </button>
               )}
               <button
-                disabled={!allReceived}
+                disabled={!allReceived || order.prepStatus.prepPending}
                 onClick={() => moveNext('Production')}
                 className={`flex-1 py-4 rounded-xl font-bold transition-all ${
-                  allReceived ? 'bg-blue-600 text-white hover:bg-blue-700' : 'bg-slate-100 text-slate-400 cursor-not-allowed'
+                  allReceived && !order.prepStatus.prepPending ? 'bg-blue-600 text-white hover:bg-blue-700' : 'bg-slate-100 text-slate-400 cursor-not-allowed'
                 }`}
               >
-                Goods Verified - Start Production
+                {order.prepStatus.prepPending ? 'Complete Prep Tasks First' : 'Goods Verified - Start Production'}
               </button>
             </div>
           </div>

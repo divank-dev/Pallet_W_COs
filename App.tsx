@@ -446,7 +446,7 @@ const AppContent: React.FC = () => {
           contactedAt: new Date(),
           contactNotes: `Lead created from dead opportunity ${orderToMove.orderNumber}`
         },
-        prepStatus: { gangSheetCreated: null, artworkDigitized: null, screensBurned: null },
+        prepStatus: { gangSheetCreated: null, artworkDigitized: null, screensBurned: null, prepPending: false },
         fulfillment: { method: null, shippingLabelPrinted: false, customerPickedUp: false },
         invoiceStatus: { invoiceCreated: false, invoiceSent: false, paymentReceived: false },
         closeoutChecklist: { filesSaved: false, canvaArchived: false, summaryUploaded: false },

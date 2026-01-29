@@ -854,7 +854,8 @@ export const TEST_ORDERS: Order[] = [
     prepStatus: {
       gangSheetCreated: true,
       artworkDigitized: false,
-      screensBurned: false
+      screensBurned: false,
+      prepPending: false
     },
     fulfillment: { ...DEFAULT_FULFILLMENT },
     invoiceStatus: { ...DEFAULT_INVOICE_STATUS },
@@ -946,7 +947,8 @@ export const TEST_ORDERS: Order[] = [
     prepStatus: {
       gangSheetCreated: null,
       artworkDigitized: null,
-      screensBurned: true
+      screensBurned: true,
+      prepPending: false
     },
     fulfillment: { ...DEFAULT_FULFILLMENT },
     invoiceStatus: { ...DEFAULT_INVOICE_STATUS },
@@ -1042,7 +1044,8 @@ export const TEST_ORDERS: Order[] = [
     prepStatus: {
       gangSheetCreated: true,
       artworkDigitized: null,
-      screensBurned: null
+      screensBurned: null,
+      prepPending: false
     },
     fulfillment: { ...DEFAULT_FULFILLMENT },
     invoiceStatus: { ...DEFAULT_INVOICE_STATUS },
@@ -1116,7 +1119,8 @@ export const TEST_ORDERS: Order[] = [
     prepStatus: {
       gangSheetCreated: null,
       artworkDigitized: true,
-      screensBurned: true
+      screensBurned: true,
+      prepPending: false
     },
     fulfillment: { ...DEFAULT_FULFILLMENT },
     invoiceStatus: { ...DEFAULT_INVOICE_STATUS },
@@ -1173,7 +1177,8 @@ export const TEST_ORDERS: Order[] = [
     prepStatus: {
       gangSheetCreated: null,
       artworkDigitized: true,
-      screensBurned: null
+      screensBurned: null,
+      prepPending: false
     },
     fulfillment: {
       method: 'Shipped',
@@ -1232,7 +1237,8 @@ export const TEST_ORDERS: Order[] = [
     prepStatus: {
       gangSheetCreated: null,
       artworkDigitized: null,
-      screensBurned: true
+      screensBurned: true,
+      prepPending: false
     },
     fulfillment: {
       method: 'PickedUp',
@@ -1315,7 +1321,8 @@ export const TEST_ORDERS: Order[] = [
     prepStatus: {
       gangSheetCreated: true,
       artworkDigitized: null,
-      screensBurned: null
+      screensBurned: null,
+      prepPending: false
     },
     fulfillment: {
       method: 'PickedUp',
@@ -1384,7 +1391,8 @@ export const TEST_ORDERS: Order[] = [
     prepStatus: {
       gangSheetCreated: null,
       artworkDigitized: true,
-      screensBurned: null
+      screensBurned: null,
+      prepPending: false
     },
     fulfillment: {
       method: 'Shipped',
@@ -1460,7 +1468,8 @@ export const TEST_ORDERS: Order[] = [
     prepStatus: {
       gangSheetCreated: null,
       artworkDigitized: true,
-      screensBurned: null
+      screensBurned: null,
+      prepPending: false
     },
     fulfillment: {
       method: 'Shipped',

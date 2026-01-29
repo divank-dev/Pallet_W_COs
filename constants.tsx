@@ -491,7 +491,8 @@ export const DUMMY_ORDERS: Order[] = [
     prepStatus: {
       gangSheetCreated: null,
       artworkDigitized: true,
-      screensBurned: null
+      screensBurned: null,
+      prepPending: false
     },
     fulfillment: { ...DEFAULT_FULFILLMENT },
     invoiceStatus: { ...DEFAULT_INVOICE_STATUS },
@@ -574,7 +575,8 @@ export const DUMMY_ORDERS: Order[] = [
     prepStatus: {
       gangSheetCreated: false,
       artworkDigitized: false,
-      screensBurned: null
+      screensBurned: null,
+      prepPending: false
     },
     fulfillment: { ...DEFAULT_FULFILLMENT },
     invoiceStatus: { ...DEFAULT_INVOICE_STATUS },

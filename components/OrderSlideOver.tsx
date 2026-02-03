@@ -1,10 +1,11 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import { X, Plus, Trash2, Check, AlertCircle, ShoppingCart, FileText, Package, Palette, Layers, Truck, Archive, ClipboardCheck, Printer, Settings, Users, Calendar, DollarSign, Phone, Mail, ThermometerSun, Target, Send, MessageSquare, Image, Link, Clock, Edit3, Eye, RefreshCw, CheckCircle2, XCircle, Upload, Download, File, FileImage, FilePlus, History, ChevronDown, ChevronUp, Paperclip, ArrowLeft, Building2 } from 'lucide-react';
 import { Order, OrderStatus, ViewMode, LineItem, ProductionMethod, STAGE_NUMBER, LeadSource, LeadTemperature, LeadInfo, ArtPlacement, ArtProof, ArtConfirmation, ArtFile, ArtRevision, ArtFileType } from '../types';
 import { calculatePrice } from '../utils/pricing';
 import { DEFAULT_LEAD_INFO, DEFAULT_ART_CONFIRMATION, ORDER_STAGES, PRODUCTION_METHOD_OPTIONS, PRODUCTION_METHOD_LABELS, SIZE_OPTIONS, PLACEMENT_LOCATIONS } from '../constants';
 import { useAuth } from '../contexts/AuthContext';
 import { loadCompanySettings, loadVendors, type CompanySettings, type Vendor } from '../src/lib/settingsService';
+import { DebouncedInput, DebouncedTextarea, DebouncedNumberInput } from './DebouncedInput';
 
 interface OrderSlideOverProps {
   order: Order;
@@ -803,22 +804,22 @@ const ArtConfirmationPanel: React.FC<ArtConfirmationPanelProps> = ({ order, onUp
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           <div>
             <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Original Artwork URL</label>
-            <input
+            <DebouncedInput
               type="url"
               placeholder="https://drive.google.com/..."
               className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
               value={artConfirmation.originalArtworkUrl || ''}
-              onChange={(e) => handleUpdateOriginalArtwork(e.target.value)}
+              onDebouncedChange={handleUpdateOriginalArtwork}
             />
           </div>
           <div>
             <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Product Mockup URL</label>
-            <input
+            <DebouncedInput
               type="url"
               placeholder="https://canva.com/..."
               className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
               value={artConfirmation.mockupUrl || ''}
-              onChange={(e) => handleUpdateMockup(e.target.value)}
+              onDebouncedChange={handleUpdateMockup}
             />
           </div>
         </div>
@@ -1240,12 +1241,12 @@ const ArtConfirmationPanel: React.FC<ArtConfirmationPanelProps> = ({ order, onUp
         <h4 className="font-bold text-slate-700 text-sm flex items-center gap-2">
           <Edit3 size={16} /> Designer Notes
         </h4>
-        <textarea
+        <DebouncedTextarea
           placeholder="Internal notes about artwork, colors, fonts, etc..."
           className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm resize-none focus:ring-2 focus:ring-blue-500 outline-none"
           rows={3}
           value={artConfirmation.designerNotes || ''}
-          onChange={(e) => handleUpdateNotes('designerNotes', e.target.value)}
+          onDebouncedChange={(value) => handleUpdateNotes('designerNotes', value)}
         />
       </div>
 
@@ -1254,12 +1255,12 @@ const ArtConfirmationPanel: React.FC<ArtConfirmationPanelProps> = ({ order, onUp
         <h4 className="font-bold text-slate-700 text-sm flex items-center gap-2">
           <FileText size={16} /> Internal Notes
         </h4>
-        <textarea
+        <DebouncedTextarea
           placeholder="Communication notes, customer preferences, etc..."
           className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm resize-none focus:ring-2 focus:ring-blue-500 outline-none"
           rows={3}
           value={artConfirmation.internalNotes || ''}
-          onChange={(e) => handleUpdateNotes('internalNotes', e.target.value)}
+          onDebouncedChange={(value) => handleUpdateNotes('internalNotes', value)}
         />
       </div>
 
@@ -2215,13 +2216,12 @@ const OrderSlideOver: React.FC<OrderSlideOverProps> = ({ order, viewMode, onClos
               {/* Estimated Quantity */}
               <div className="space-y-2">
                 <label className="text-xs uppercase text-slate-500 font-bold">Est. Quantity</label>
-                <input
-                  type="number"
-                  min="0"
+                <DebouncedNumberInput
+                  min={0}
                   value={order.leadInfo?.estimatedQuantity || 0}
-                  onChange={(e) => onUpdate({
+                  onDebouncedChange={(value) => onUpdate({
                     ...order,
-                    leadInfo: { ...(order.leadInfo || DEFAULT_LEAD_INFO), estimatedQuantity: parseInt(e.target.value) || 0 }
+                    leadInfo: { ...(order.leadInfo || DEFAULT_LEAD_INFO), estimatedQuantity: value }
                   })}
                   className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none"
                 />
@@ -2230,13 +2230,13 @@ const OrderSlideOver: React.FC<OrderSlideOverProps> = ({ order, viewMode, onClos
               {/* Estimated Value */}
               <div className="space-y-2">
                 <label className="text-xs uppercase text-slate-500 font-bold">Est. Value ($)</label>
-                <input
-                  type="number"
-                  min="0"
+                <DebouncedNumberInput
+                  min={0}
+                  allowFloat
                   value={order.leadInfo?.estimatedValue || 0}
-                  onChange={(e) => onUpdate({
+                  onDebouncedChange={(value) => onUpdate({
                     ...order,
-                    leadInfo: { ...(order.leadInfo || DEFAULT_LEAD_INFO), estimatedValue: parseFloat(e.target.value) || 0 }
+                    leadInfo: { ...(order.leadInfo || DEFAULT_LEAD_INFO), estimatedValue: value }
                   })}
                   className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none"
                 />
@@ -2245,12 +2245,12 @@ const OrderSlideOver: React.FC<OrderSlideOverProps> = ({ order, viewMode, onClos
               {/* Event/Need-by Date */}
               <div className="space-y-2">
                 <label className="text-xs uppercase text-slate-500 font-bold">Event/Need-by Date</label>
-                <input
+                <DebouncedInput
                   type="date"
                   value={order.leadInfo?.eventDate || ''}
-                  onChange={(e) => onUpdate({
+                  onDebouncedChange={(value) => onUpdate({
                     ...order,
-                    leadInfo: { ...(order.leadInfo || DEFAULT_LEAD_INFO), eventDate: e.target.value }
+                    leadInfo: { ...(order.leadInfo || DEFAULT_LEAD_INFO), eventDate: value }
                   })}
                   className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none"
                 />
@@ -2259,12 +2259,12 @@ const OrderSlideOver: React.FC<OrderSlideOverProps> = ({ order, viewMode, onClos
               {/* Follow-up Date */}
               <div className="space-y-2">
                 <label className="text-xs uppercase text-slate-500 font-bold">Follow-up Date</label>
-                <input
+                <DebouncedInput
                   type="date"
                   value={order.leadInfo?.followUpDate || ''}
-                  onChange={(e) => onUpdate({
+                  onDebouncedChange={(value) => onUpdate({
                     ...order,
-                    leadInfo: { ...(order.leadInfo || DEFAULT_LEAD_INFO), followUpDate: e.target.value }
+                    leadInfo: { ...(order.leadInfo || DEFAULT_LEAD_INFO), followUpDate: value }
                   })}
                   className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none"
                 />
@@ -2273,13 +2273,13 @@ const OrderSlideOver: React.FC<OrderSlideOverProps> = ({ order, viewMode, onClos
               {/* Decision Maker */}
               <div className="space-y-2">
                 <label className="text-xs uppercase text-slate-500 font-bold">Decision Maker</label>
-                <input
+                <DebouncedInput
                   type="text"
                   placeholder="Who makes the decision?"
                   value={order.leadInfo?.decisionMaker || ''}
-                  onChange={(e) => onUpdate({
+                  onDebouncedChange={(value) => onUpdate({
                     ...order,
-                    leadInfo: { ...(order.leadInfo || DEFAULT_LEAD_INFO), decisionMaker: e.target.value }
+                    leadInfo: { ...(order.leadInfo || DEFAULT_LEAD_INFO), decisionMaker: value }
                   })}
                   className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none"
                 />
@@ -2289,13 +2289,13 @@ const OrderSlideOver: React.FC<OrderSlideOverProps> = ({ order, viewMode, onClos
             {/* Product Interest */}
             <div className="space-y-2">
               <label className="text-xs uppercase text-slate-500 font-bold">Product Interest</label>
-              <input
+              <DebouncedInput
                 type="text"
                 placeholder="What products are they interested in? (e.g., T-shirts, hoodies, hats)"
                 value={order.leadInfo?.productInterest || ''}
-                onChange={(e) => onUpdate({
+                onDebouncedChange={(value) => onUpdate({
                   ...order,
-                  leadInfo: { ...(order.leadInfo || DEFAULT_LEAD_INFO), productInterest: e.target.value }
+                  leadInfo: { ...(order.leadInfo || DEFAULT_LEAD_INFO), productInterest: value }
                 })}
                 className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none"
               />
@@ -2327,13 +2327,13 @@ const OrderSlideOver: React.FC<OrderSlideOverProps> = ({ order, viewMode, onClos
             {/* Budget */}
             <div className="space-y-2">
               <label className="text-xs uppercase text-slate-500 font-bold">Budget Range</label>
-              <input
+              <DebouncedInput
                 type="text"
                 placeholder="e.g., $500 - $1,000"
                 value={order.leadInfo?.budget || ''}
-                onChange={(e) => onUpdate({
+                onDebouncedChange={(value) => onUpdate({
                   ...order,
-                  leadInfo: { ...(order.leadInfo || DEFAULT_LEAD_INFO), budget: e.target.value }
+                  leadInfo: { ...(order.leadInfo || DEFAULT_LEAD_INFO), budget: value }
                 })}
                 className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none"
               />
@@ -2357,13 +2357,13 @@ const OrderSlideOver: React.FC<OrderSlideOverProps> = ({ order, viewMode, onClos
             {/* Contact Notes */}
             <div className="space-y-2">
               <label className="text-xs uppercase text-slate-500 font-bold">Contact Notes</label>
-              <textarea
+              <DebouncedTextarea
                 placeholder="Notes from conversations, special requirements, concerns..."
                 rows={4}
                 value={order.leadInfo?.contactNotes || ''}
-                onChange={(e) => onUpdate({
+                onDebouncedChange={(value) => onUpdate({
                   ...order,
-                  leadInfo: { ...(order.leadInfo || DEFAULT_LEAD_INFO), contactNotes: e.target.value }
+                  leadInfo: { ...(order.leadInfo || DEFAULT_LEAD_INFO), contactNotes: value }
                 })}
                 className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none resize-none"
               />
@@ -2495,14 +2495,14 @@ const OrderSlideOver: React.FC<OrderSlideOverProps> = ({ order, viewMode, onClos
                     <Link size={14} className="inline mr-1" />
                     Artwork Location URL
                   </label>
-                  <input
+                  <DebouncedInput
                     type="url"
                     value={order.artConfirmation?.originalArtworkUrl || ''}
-                    onChange={(e) => onUpdate({
+                    onDebouncedChange={(value) => onUpdate({
                       ...order,
                       artConfirmation: {
                         ...order.artConfirmation,
-                        originalArtworkUrl: e.target.value
+                        originalArtworkUrl: value
                       }
                     })}
                     placeholder="https://drive.google.com/... or Dropbox link"
@@ -2517,13 +2517,13 @@ const OrderSlideOver: React.FC<OrderSlideOverProps> = ({ order, viewMode, onClos
                     <MessageSquare size={14} className="inline mr-1" />
                     Art Notes
                   </label>
-                  <textarea
+                  <DebouncedTextarea
                     value={order.artConfirmation?.designerNotes || ''}
-                    onChange={(e) => onUpdate({
+                    onDebouncedChange={(value) => onUpdate({
                       ...order,
                       artConfirmation: {
                         ...order.artConfirmation,
-                        designerNotes: e.target.value
+                        designerNotes: value
                       }
                     })}
                     placeholder="Notes about the artwork, special instructions, color requirements..."
@@ -2948,13 +2948,13 @@ const OrderSlideOver: React.FC<OrderSlideOverProps> = ({ order, viewMode, onClos
               <div className="grid grid-cols-3 gap-3">
                 <div>
                   <label className="block text-xs font-bold text-amber-700 uppercase mb-1">Primary PO *</label>
-                  <input
+                  <DebouncedInput
                     type="text"
                     placeholder="PO-12345"
                     value={order.poNumbers?.primary || ''}
-                    onChange={(e) => onUpdate({
+                    onDebouncedChange={(value) => onUpdate({
                       ...order,
-                      poNumbers: { ...order.poNumbers, primary: e.target.value }
+                      poNumbers: { ...order.poNumbers, primary: value }
                     })}
                     className="w-full border border-amber-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-amber-500 outline-none bg-white"
                   />
@@ -2962,26 +2962,26 @@ const OrderSlideOver: React.FC<OrderSlideOverProps> = ({ order, viewMode, onClos
                 </div>
                 <div>
                   <label className="block text-xs font-bold text-amber-700 uppercase mb-1">Secondary PO</label>
-                  <input
+                  <DebouncedInput
                     type="text"
                     placeholder="Optional"
                     value={order.poNumbers?.secondary || ''}
-                    onChange={(e) => onUpdate({
+                    onDebouncedChange={(value) => onUpdate({
                       ...order,
-                      poNumbers: { ...order.poNumbers, secondary: e.target.value }
+                      poNumbers: { ...order.poNumbers, secondary: value }
                     })}
                     className="w-full border border-amber-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-amber-500 outline-none bg-white"
                   />
                 </div>
                 <div>
                   <label className="block text-xs font-bold text-amber-700 uppercase mb-1">Tertiary PO</label>
-                  <input
+                  <DebouncedInput
                     type="text"
                     placeholder="Optional"
                     value={order.poNumbers?.tertiary || ''}
-                    onChange={(e) => onUpdate({
+                    onDebouncedChange={(value) => onUpdate({
                       ...order,
-                      poNumbers: { ...order.poNumbers, tertiary: e.target.value }
+                      poNumbers: { ...order.poNumbers, tertiary: value }
                     })}
                     className="w-full border border-amber-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-amber-500 outline-none bg-white"
                   />
@@ -3966,14 +3966,14 @@ const OrderSlideOver: React.FC<OrderSlideOverProps> = ({ order, viewMode, onClos
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Invoice Number</label>
-                  <input
+                  <DebouncedInput
                     type="text"
                     placeholder="INV-2024-001"
                     className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-green-500 outline-none"
                     value={order.invoiceStatus?.invoiceNumber || ''}
-                    onChange={(e) => onUpdate({
+                    onDebouncedChange={(value) => onUpdate({
                       ...order,
-                      invoiceStatus: { ...order.invoiceStatus, invoiceNumber: e.target.value }
+                      invoiceStatus: { ...order.invoiceStatus, invoiceNumber: value }
                     })}
                   />
                 </div>
@@ -3981,15 +3981,14 @@ const OrderSlideOver: React.FC<OrderSlideOverProps> = ({ order, viewMode, onClos
                   <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Invoice Amount</label>
                   <div className="relative">
                     <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">$</span>
-                    <input
-                      type="number"
-                      step="0.01"
+                    <DebouncedNumberInput
+                      allowFloat
                       placeholder={grandTotal.toFixed(2)}
                       className="w-full border border-slate-200 rounded-lg px-3 py-2 pl-7 text-sm focus:ring-2 focus:ring-green-500 outline-none"
-                      value={order.invoiceStatus?.invoiceAmount || ''}
-                      onChange={(e) => onUpdate({
+                      value={order.invoiceStatus?.invoiceAmount || 0}
+                      onDebouncedChange={(value) => onUpdate({
                         ...order,
-                        invoiceStatus: { ...order.invoiceStatus, invoiceAmount: parseFloat(e.target.value) || 0 }
+                        invoiceStatus: { ...order.invoiceStatus, invoiceAmount: value }
                       })}
                     />
                   </div>
@@ -4096,14 +4095,14 @@ const OrderSlideOver: React.FC<OrderSlideOverProps> = ({ order, viewMode, onClos
                   </div>
                   <div>
                     <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Payment Notes</label>
-                    <input
+                    <DebouncedInput
                       type="text"
                       placeholder="Check #, confirmation, etc."
                       className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm"
                       value={order.invoiceStatus?.paymentNotes || ''}
-                      onChange={(e) => onUpdate({
+                      onDebouncedChange={(value) => onUpdate({
                         ...order,
-                        invoiceStatus: { ...order.invoiceStatus, paymentNotes: e.target.value }
+                        invoiceStatus: { ...order.invoiceStatus, paymentNotes: value }
                       })}
                     />
                   </div>

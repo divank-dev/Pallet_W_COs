@@ -1,5 +1,5 @@
 
-import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useMemo, useEffect, useCallback, useRef, MutableRefObject } from 'react';
 import { Search, ChevronDown, Bell, X, LogOut, Loader2, Menu, Layers } from 'lucide-react';
 import { Order, OrderStatus, ViewMode, StatusChangeLog, ProductionMethod } from './types';
 import { DUMMY_ORDERS, ORDER_STAGES, PRODUCTION_METHODS, PRODUCTION_METHOD_LABELS, PRODUCTION_METHOD_COLORS } from './constants';
@@ -63,6 +63,22 @@ const AppContent: React.FC = () => {
     return () => { isMountedRef.current = false; };
   }, []);
 
+  // Track pending updates to prevent subscription from overwriting user changes
+  // Key: order ID, Value: timestamp of last local update
+  const pendingUpdatesRef = useRef<Map<string, number>>(new Map());
+
+  // Track the latest orders state via ref to avoid stale closures
+  const ordersRef = useRef<Order[]>(orders);
+  useEffect(() => {
+    ordersRef.current = orders;
+  }, [orders]);
+
+  // Track request sequence numbers per order to handle out-of-order responses
+  const requestSequenceRef = useRef<Map<string, number>>(new Map());
+
+  // Track latest completed sequence per order to ignore stale responses
+  const completedSequenceRef = useRef<Map<string, number>>(new Map());
+
   // Fetch orders from Supabase on mount
   useEffect(() => {
     let unsubscribe: (() => void) | null = null;
@@ -85,10 +101,43 @@ const AppContent: React.FC = () => {
         // Subscribe to real-time updates
         unsubscribe = subscribeToOrders((updatedOrders) => {
           if (!isMountedRef.current) return;
-          setOrders(updatedOrders);
-          // Update selected order if it changed
+
+          // Merge subscription updates with local state, preserving pending local changes
+          // This prevents subscription updates from overwriting in-flight user edits
+          const now = Date.now();
+          const PENDING_TIMEOUT = 5000; // Consider update pending for 5 seconds
+
+          setOrders(prevOrders => {
+            return updatedOrders.map(serverOrder => {
+              const pendingTimestamp = pendingUpdatesRef.current.get(serverOrder.id);
+
+              // If there's a pending local update for this order (within timeout),
+              // preserve the local version to avoid overwriting user's in-progress edits
+              if (pendingTimestamp && (now - pendingTimestamp) < PENDING_TIMEOUT) {
+                const localOrder = prevOrders.find(o => o.id === serverOrder.id);
+                if (localOrder) {
+                  return localOrder;
+                }
+              }
+
+              // No pending update, use server version
+              // Also clean up the pending map if timeout exceeded
+              if (pendingTimestamp && (now - pendingTimestamp) >= PENDING_TIMEOUT) {
+                pendingUpdatesRef.current.delete(serverOrder.id);
+              }
+
+              return serverOrder;
+            });
+          });
+
+          // Update selected order if it changed (but respect pending updates)
           setSelectedOrder(prev => {
             if (!prev) return prev;
+            const pendingTimestamp = pendingUpdatesRef.current.get(prev.id);
+            if (pendingTimestamp && (now - pendingTimestamp) < PENDING_TIMEOUT) {
+              // Preserve local selected order during pending update
+              return prev;
+            }
             const updated = updatedOrders.find(o => o.id === prev.id);
             return updated || prev;
           });
@@ -255,8 +304,9 @@ const AppContent: React.FC = () => {
   }, [filteredOrders, showDecorationColumns]);
 
   const handleUpdateOrder = useCallback(async (updated: Order) => {
-    // Find the original order to compare
-    const original = orders.find(o => o.id === updated.id);
+    // Use ref to get current orders state to avoid stale closure issues
+    const currentOrders = ordersRef.current;
+    const original = currentOrders.find(o => o.id === updated.id);
 
     // Add audit log for status changes
     let orderWithAudit = updated;
@@ -270,6 +320,13 @@ const AppContent: React.FC = () => {
       );
     }
 
+    // Generate a sequence number for this request to handle out-of-order responses
+    const currentSequence = (requestSequenceRef.current.get(updated.id) || 0) + 1;
+    requestSequenceRef.current.set(updated.id, currentSequence);
+
+    // Mark this order as having a pending local update
+    pendingUpdatesRef.current.set(updated.id, Date.now());
+
     // Optimistic update
     setOrders(prev => prev.map(o => o.id === updated.id ? orderWithAudit : o));
     setSelectedOrder(orderWithAudit);
@@ -278,23 +335,46 @@ const AppContent: React.FC = () => {
     try {
       setIsSaving(true);
       const saved = await updateOrderDb(updated.id, orderWithAudit);
+
+      // Check if this response is stale (a newer request was made while this was in flight)
+      const latestSequence = requestSequenceRef.current.get(updated.id) || 0;
+      if (currentSequence < latestSequence) {
+        // This response is stale - a newer update was sent, ignore this response
+        console.debug(`Ignoring stale response for order ${updated.id} (seq ${currentSequence} < ${latestSequence})`);
+        return;
+      }
+
+      // Update the completed sequence
+      completedSequenceRef.current.set(updated.id, currentSequence);
+
       // Sync state with DB-refreshed order (ensures IDs, computed fields, and
       // nullable fields like closedAt are accurate after the round-trip)
       if (saved) {
         setOrders(prev => prev.map(o => o.id === saved.id ? saved : o));
-        setSelectedOrder(saved);
+        setSelectedOrder(prev => prev?.id === saved.id ? saved : prev);
       }
+
+      // Clear pending update since we've successfully synced
+      pendingUpdatesRef.current.delete(updated.id);
     } catch (err) {
       console.error('Failed to save order:', err);
-      // Revert on error
-      if (original) {
-        setOrders(prev => prev.map(o => o.id === updated.id ? original : o));
-        setSelectedOrder(original);
+
+      // Only revert if this is still the latest request (not superseded)
+      const latestSequence = requestSequenceRef.current.get(updated.id) || 0;
+      if (currentSequence >= latestSequence) {
+        // Revert on error - use fresh lookup from ref to get most recent state
+        const revertTo = original || ordersRef.current.find(o => o.id === updated.id);
+        if (revertTo) {
+          setOrders(prev => prev.map(o => o.id === updated.id ? revertTo : o));
+          setSelectedOrder(prev => prev?.id === updated.id ? revertTo : prev);
+        }
+        // Clear pending update on error
+        pendingUpdatesRef.current.delete(updated.id);
       }
     } finally {
       setIsSaving(false);
     }
-  }, [orders, currentUser]);
+  }, [currentUser]); // Removed 'orders' dependency - using ordersRef instead
 
   const handleCreateOrder = useCallback(async (newOrder: any) => {
     // Add creation audit log
